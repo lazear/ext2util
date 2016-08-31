@@ -39,7 +39,14 @@ SOFTWARE.
 #define NULL ((void*) 0)
 
 
-buffer* buffer_read(int dev, int block) {}
+FILE *fp = NULL;
+
+buffer* buffer_read(int dev, int block) {
+	buffer* b = malloc(sizeof(buffer));
+	b->block = block;
+	pread(fp, b->data, BLOCK_SIZE, block*BLOCK_SIZE);
+	return b;
+}
 buffer* buffer_write(buffer* b) {}
 
 /* 	Read superblock from device dev, and check the magic flag.
@@ -400,12 +407,13 @@ int ext2_touch(char* name, char* data, size_t n) {
 int main(int argc, char* argv[]) {
 		
 
-	FILE *fp = open(argv[1], O_RDWR, 0444);
+	fp = open(argv[1], O_RDWR, 0444);
 
 	assert(fp);
 
 	superblock* s = malloc(sizeof(superblock));
 	pread(fp, s, sizeof(superblock), 1024);
-	sb_dump(s);
 
+	sb_dump(s);
+	bg_dump(ext2_blockdesc(1));
 }
