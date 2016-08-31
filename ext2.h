@@ -31,7 +31,7 @@ Block groups are found at the address (group number - 1) * blocks_per_group.
 Each block group has a backup superblock as it's first block
 */
 
-#include "types.h"
+#include <stdint.h>
 
 #ifndef __baremetal_ext2__
 #define __baremetal_ext2__
@@ -66,7 +66,7 @@ typedef struct superblock_s {
 	uint32_t rev_level;
 	uint16_t def_resuid;
 	uint16_t def_resgid;
-} superblock;
+} __attribute__((packed)) superblock;
 
 /*
 Inode bitmap size = (inodes_per_group / 8) / BLOCK_SIZE

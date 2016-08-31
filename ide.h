@@ -5,8 +5,7 @@ Header file containing definitions of IDE status bits and registers
 Adapted from old code of my own origin (inspired by osdever.net) and
 with xv6 inspired queueing
 */
-
-#include "types.h"
+#include <stdint.h>
 
 #ifndef __baremetal_ide__
 #define __baremetal_ide__

@@ -25,10 +25,10 @@ SOFTWARE.
 */
 
 #include "ext2.h"
-#include "types.h"
+
 #include "ide.h"
 #include <assert.h>
-
+#include <stdint.h>
 
 block_group_descriptor* bg_dump(block_group_descriptor* bg) {
 	printf("Block bitmap %d\n", bg->block_bitmap);
