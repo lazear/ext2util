@@ -24,7 +24,6 @@ SOFTWARE.
 ===============================================================================
 */
 //#include <types.h>
-#include "ide.h"
 #include "ext2.h"
 
 #include <stdint.h>
@@ -38,16 +37,44 @@ SOFTWARE.
 
 #define NULL ((void*) 0)
 
+/* Leak detector functions */
+void* leak_malloc(size_t n, char* file, int line, char* func) {
+	void* ptr = malloc(n);
+	printf("Allocating %d bytes at 0x%x: %s:%d:%s\n", n, ptr, file, line, func);
+	return ptr;
+}
+void leak_free(void* n, char* file, int line, char* func) {
+	printf("Freeing 0x%x %s:%d:%s\n", n, file, line, func);
+	free(n);
+}
 
-FILE *fp = NULL;
 
+#define malloc(x)	(leak_malloc(x, __FILE__, __LINE__, __func__))
+#define free(x)	(leak_free(x, __FILE__, __LINE__, __func__))
+
+
+
+static int fp = NULL;
+
+/* Buffer_read and write are used as glue functions for code compatibility 
+with hard disk ext2 driver, which has buffer caching functions. Those will
+not be included here.  */
 buffer* buffer_read(int dev, int block) {
 	buffer* b = malloc(sizeof(buffer));
 	b->block = block;
 	pread(fp, b->data, BLOCK_SIZE, block*BLOCK_SIZE);
+
 	return b;
 }
-buffer* buffer_write(buffer* b) {}
+
+/* Free the buffer block, since we're not caching */
+uint32_t buffer_write(buffer* b) {
+	assert(b->block);
+	pwrite(fp, b->data, BLOCK_SIZE, b->block * BLOCK_SIZE);
+	free(b);
+}
+
+
 
 /* 	Read superblock from device dev, and check the magic flag.
 	Return NULL if not a valid EXT2 partition */
@@ -61,7 +88,11 @@ superblock* ext2_superblock(int dev) {
 		return sb;
 
 	buffer* b = buffer_read(dev, EXT2_SUPER);
-	sb = (superblock*) b->data;
+
+	sb = malloc(sizeof(superblock));
+	memcpy(sb, b->data, sizeof(superblock));
+	free(b);
+
 	
 	assert(sb->magic == EXT2_MAGIC);
 	if (sb->magic != EXT2_MAGIC)
@@ -77,10 +108,16 @@ superblock* ext2_superblock_rw(int dev, superblock* s) {
 	if (!dev) 
 		return NULL;
 	buffer* b = buffer_read(dev, EXT2_SUPER);
-
+	if (!s) {						// Passed a NULL
+		s = malloc(sizeof(superblock));
+		memcpy(s, b->data, sizeof(superblock));
+		free(b);
+		return s;
+	}
 	if (s->magic != EXT2_MAGIC) {	// Non-valid superblock, read 
-		s = (superblock*) b->data;
-	} else {							// Valid superblock, overwrite
+		memcpy(s, b->data, sizeof(superblock));
+		free(b);
+	} else {						// Valid superblock, overwrite
 		memcpy(b->data, s, sizeof(superblock));
 		buffer_write(b);
 	}
@@ -183,6 +220,7 @@ void lsroot() {
 	
 	int sum = 0;
 	int calc = 0;
+	printf("ls: /\n");
 	do {
 		
 		// Calculate the 4byte aligned size of each entry
@@ -192,20 +230,18 @@ void lsroot() {
 		if (d->rec_len != calc && sum == 1024) {
 			/* if the calculated value doesn't match the given value,
 			then we've reached the final entry on the block */
-			sum -= d->rec_len;
+			//sum -= d->rec_len;
 	
 			d->rec_len = calc; 		// Resize this entry to it's real size
-			d = (dirent*)((uint32_t) d + d->rec_len);
-			break;
+		//	d = (dirent*)((uint32_t) d + d->rec_len);
 
 		}
-		printf("%d\t/%s\n", d->inode, d->name);
-
+	printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
+	
 		d = (dirent*)((uint32_t) d + d->rec_len);
 
 
 	} while(sum < 1024);
-
 	free(buf);
 	return NULL;
 }
@@ -267,8 +303,6 @@ uint32_t ext2_alloc_inode() {
 	free(bitmap);				
 	return num + 1;	// 1 indexed				
 }
-
-
 
 int ext2_touch(char* name, char* data, size_t n) {
 	/* 
@@ -393,27 +427,50 @@ int ext2_touch(char* name, char* data, size_t n) {
 
 	/* Update superblock information */
 	s->free_inodes_count--;
-	s->wtime = time();
+	s->wtime = time(NULL);
 	ext2_superblock_rw(1,s);
 
 	/* Update block group descriptors */
 	bg->free_inodes_count--;
 	ext2_blockdesc_rw(1, bg);
 
+	free(i);
 	return inode_num;
 }
 
+/* Adds a file to root directory */
+int add_to_disk(char* file_name) {
+	int fp_add = open(file_name, O_RDWR, 0444);
+	assert(fp_add);
+
+	int sz = lseek(fp_add, 0, SEEK_END);		// seek to end of file
+	lseek(fp_add, 0, SEEK_SET);		// back to beginning
+
+	char* buffer = malloc(sz);	// File buffer
+	pread(fp_add, buffer, sz, 0);
+	printf("%s %d\n", file_name, sz);
+
+	ext2_touch(file_name, buffer, sz);
+
+	free(buffer);
+}
 
 int main(int argc, char* argv[]) {
-		
 
 	fp = open(argv[1], O_RDWR, 0444);
-
 	assert(fp);
 
-	superblock* s = malloc(sizeof(superblock));
-	pread(fp, s, sizeof(superblock), 1024);
+	superblock* s = ext2_superblock_rw(1, NULL);
+	s->mtime = time(NULL);	// Update mount time
 
+	ext2_superblock_rw(1, s);
 	sb_dump(s);
+
 	bg_dump(ext2_blockdesc(1));
+	
+	if (argc >= 3) {
+		add_to_disk(argv[2]);
+	}
+
+	lsroot();
 }

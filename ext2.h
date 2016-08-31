@@ -36,6 +36,8 @@ Each block group has a backup superblock as it's first block
 #ifndef __baremetal_ext2__
 #define __baremetal_ext2__
 
+#define BLOCK_SIZE		1024
+#define SECTOR_SIZE		512
 #define EXT2_BOOT		0			// Block 0 is bootblock
 #define EXT2_SUPER		1			// Block 1 is superblock
 #define EXT2_MAGIC		0x0000EF53
@@ -130,6 +132,18 @@ typedef struct dirent_s {
 } __attribute__((packed)) dirent;
 
 /* IMPORTANT: Inode addresses start at 1 */
+
+typedef struct ide_buffer {
+	uint32_t block;				// block number
+	uint8_t data[BLOCK_SIZE];	// 1 disk sector of data
+} buffer;
+
+
+
+#define B_BUSY	0x1		// buffer is locked by a process
+#define B_VALID	0x2		// buffer has been read from disk
+#define B_DIRTY	0x4		// buffer has been written to
+
 
 
 #endif
