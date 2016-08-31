@@ -48,10 +48,10 @@ void leak_free(void* n, char* file, int line, char* func) {
 	free(n);
 }
 
-
+/*
 #define malloc(x)	(leak_malloc(x, __FILE__, __LINE__, __func__))
 #define free(x)	(leak_free(x, __FILE__, __LINE__, __func__))
-
+*/
 
 
 static int fp = NULL;

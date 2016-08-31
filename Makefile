@@ -24,8 +24,12 @@ OBJS	= *.o
 CC 		= gcc
 CCFLAGS = -O -w -std=c99
 
-all: compile
+all: compile 
+
 
 compile:
 	$(CC) $(CCFLAGS) *.c -o $(FINAL)
 
+new:
+	dd if=/dev/zero of=ext2.img bs=1k count=32k
+	sudo mke2fs ext2.img
