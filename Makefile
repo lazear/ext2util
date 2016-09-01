@@ -23,9 +23,16 @@ FINAL	= ext2util
 OBJS	= *.o
 CC 		= gcc
 CCFLAGS = -O -w -std=c99
+BCC		= /home/lazear/opt/cross/bin/i686-elf-gcc
+BCFLAGS	= -w -fno-builtin -nostdlib -ffreestanding -std=gnu99 -m32 -c 
+LD 		= /home/lazear/opt/cross/bin/i686-elf-ld
+
 
 all: compile 
 
+boot:
+	$(BCC) $(BCFLAGS) ext2_bootloader.c
+	$(LD) -Ttext 0x1000 -o bootloader ext2_bootloader.o
 
 compile:
 	$(CC) $(CCFLAGS) ext2.c ext2_debug.c -o $(FINAL)

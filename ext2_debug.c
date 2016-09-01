@@ -60,9 +60,9 @@ void inode_dump(inode* in) {
 	printf("#Links\t%d\n", in->links_count);	// How many links
 	printf("Sector\t%d\t", in->blocks);		// # of 512-bytes blocks reserved to contain the data
 	printf("Flags\t%x\n", in->flags);			// EXT2 behavior
-	for (int i =0; i < in->blocks/2; i++)
+/*	for (int i =0; i < in->blocks/2; i++)
 		printf("Block[%d]\t%d\n", i, in->block[i]);		// Block pointers. Last 3 are indirect
-
+*/
 }
 
 // For debugging purposes
