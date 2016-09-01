@@ -28,7 +28,7 @@ all: compile
 
 
 compile:
-	$(CC) $(CCFLAGS) *.c -o $(FINAL)
+	$(CC) $(CCFLAGS) ext2.c ext2_debug.c -o $(FINAL)
 
 new:
 	dd if=/dev/zero of=ext2.img bs=1k count=32k
