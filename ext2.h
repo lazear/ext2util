@@ -36,6 +36,8 @@ Each block group has a backup superblock as it's first block
 #ifndef __baremetal_ext2__
 #define __baremetal_ext2__
 
+#define NULL			((void*) 0)
+
 #define BLOCK_SIZE		1024
 #define SECTOR_SIZE		512
 #define EXT2_BOOT		0			// Block 0 is bootblock
@@ -119,7 +121,27 @@ typedef struct inode_s {
 
 #define INODE_SIZE (sizeof(inode))
 
-
+#define EXT2_IFSOCK		0xC000		//socket
+#define EXT2_IFLNK		0xA000		//symbolic link
+#define EXT2_IFREG		0x8000		//regular file
+#define EXT2_IFBLK		0x6000		//block device
+#define EXT2_IFDIR		0x4000		//directory
+#define EXT2_IFCHR		0x2000		//character device
+#define EXT2_IFIFO		0x1000		//fifo
+//-- process execution user/group override --
+#define EXT2_ISUID		0x0800		//Set process User ID
+#define EXT2_ISGID		0x0400		//Set process Group ID
+#define EXT2_ISVTX		0x0200		//sticky bit
+//-- access rights --
+#define EXT2_IRUSR		0x0100		//user read
+#define EXT2_IWUSR		0x0080		//user write
+#define EXT2_IXUSR		0x0040		//user execute
+#define EXT2_IRGRP		0x0020		//group read
+#define EXT2_IWGRP		0x0010		//group write
+#define EXT2_IXGRP		0x0008		//group execute
+#define EXT2_IROTH		0x0004		//others read
+#define EXT2_IWOTH		0x0002		//others write
+#define EXT2_IXOTH		0x0001		//others execute
 /*
 Directories must be 4byte aligned, and cannot extend between multiple
 blocks on the disk */
@@ -150,31 +172,6 @@ typedef struct ide_buffer {
 #define B_DIRTY	0x4		// buffer has been written to
 
 
-/* Define IDE status bits */
-#define IDE_BSY 		(1<<7)	// Drive is preparing to send/receive data
-#define IDE_RDY 		(1<<6)	// Clear when drive is spun down, or after error
-#define IDE_DF			(1<<5)	// Drive Fault error
-#define IDE_ERR			(1<<0)	// Error has occured
-
-#define IDE_IO			0x1F0	// Main IO port
-#define IDE_DATA		0x0 	// R/W PIO data bytes
-#define IDE_FEAT		0x1 	// ATAPI devices
-#define IDE_SECN		0x2 	// # of sectors to R/W
-#define IDE_LOW			0x3 	// CHS/LBA28/LBA48 specific
-#define IDE_MID 		0x4
-#define IDE_HIGH		0x5
-#define IDE_HEAD		0x6 	// Select drive/heaad
-#define IDE_CMD 		0x7 	// Command/status port
-#define IDE_ALT			0x3F6	// alternate status
-#define LBA_LOW(c)		((uint8_t) (c & 0xFF))
-#define LBA_MID(c)		((uint8_t) (c >> 8) & 0xFF)
-#define LBA_HIGH(c)		((uint8_t) (c >> 16) & 0xFF)
-#define LBA_LAST(c)		((uint8_t) (c >> 24) & 0xF)
-
-#define IDE_CMD_READ  (BLOCK_SIZE/SECTOR_SIZE == 1) ? 0x20 : 0xC4
-#define IDE_CMD_WRITE (BLOCK_SIZE/SECTOR_SIZE == 1) ? 0x30 : 0xC5
-#define IDE_CMD_READ_MUL  0xC4
-#define IDE_CMD_WRITE_MUL 0xC5
 
 
 

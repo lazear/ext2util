@@ -181,56 +181,6 @@ inode* ext2_inode(int dev, int i) {
 }
 
 
-void ls(dirent* d) {
-	do{
-	//	d->name[d->name_len] = '\0';
-		printf("\t%s\ttype %d\n", d->name, d->file_type);
-
-		d = (dirent*)((uint32_t) d + d->rec_len);
-	} while(d->inode);
-}
-
-void lsroot() {
-	inode* i = ext2_inode(1, 2);			// Root directory
-
-	char* buf = malloc(BLOCK_SIZE*i->blocks/2);
-	memset(buf, 0, BLOCK_SIZE*i->blocks/2);
-
-	for (int q = 0; q < i->blocks / 2; q++) {
-		buffer* b = buffer_read(1, i->block[q]);
-		memcpy((uint32_t)buf+(q * BLOCK_SIZE), b->data, BLOCK_SIZE);
-	}
-
-	dirent* d = (dirent*) buf;
-	
-	int sum = 0;
-	int calc = 0;
-	printf("ls: /\n");
-	do {
-		
-		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
-		sum += d->rec_len;
-
-		if (d->rec_len != calc && sum == 1024) {
-			/* if the calculated value doesn't match the given value,
-			then we've reached the final entry on the block */
-			//sum -= d->rec_len;
-	
-			d->rec_len = calc; 		// Resize this entry to it's real size
-		//	d = (dirent*)((uint32_t) d + d->rec_len);
-
-		}
-	printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
-	
-		d = (dirent*)((uint32_t) d + d->rec_len);
-
-
-	} while(sum < 1024);
-	free(buf);
-	return NULL;
-}
-
 int ext_first_free(uint32_t* b, int sz) {
 	for (int q = 0; q < sz; q++) {
 		uint32_t free_bits = (b[q] ^ ~0x0);
@@ -310,205 +260,6 @@ uint32_t ext2_read_indirect(uint32_t indirect, size_t block_num) {
 	return *(uint32_t*) ((uint32_t) b->data + block_num*4);
 }
 
-void* ext2_open(inode* in) {
-	assert(in);
-	if(!in)
-		return NULL;
-
-	int num_blocks = in->blocks / (BLOCK_SIZE/SECTOR_SIZE);	
-
-	assert(num_blocks != 0);
-	if (!num_blocks) 
-		return NULL;
-
-
-	size_t sz = BLOCK_SIZE*num_blocks;
-	void* buf = malloc(sz);
-	assert(buf != NULL);
-
-	int indirect = 0;
-
-	/* Singly-indirect block pointer */
-	if (num_blocks > 12) {
-		indirect = in->block[12];
-	}
-
-	int blocknum = 0;
-	for (int i = 0; i < num_blocks; i++) {
-		if (i < 12) 
-			blocknum = in->block[i];
-		else
-			blocknum = ext2_read_indirect(indirect, i-12);
-		if (!blocknum)
-			break;
-		buffer* b = buffer_read(1, blocknum);
-		memcpy((uint32_t) buf + (i * BLOCK_SIZE), b->data, BLOCK_SIZE);
-		//printf("%x\n", b->data[i]);
-	}
-	return buf;
-}
-
-int ext2_write_inode(int inode_num, char* name, char* data, size_t n) {
-	/* 
-	Things we need to do:
-		* Find the first free inode # and free blocks needed
-		* Mark that inode and block as used
-		* Allocate a new inode and fill out the struct
-		* Write the new inode to the inode_table
-		* Update superblock&blockgroup w/ last mod time, # free inodes, etc
-		* Update directory structures
-	*/
-
-	superblock* s = ext2_superblock(1);
-	block_group_descriptor* bg = ext2_blockdesc(1);
-	int sz = n;
-	int indirect = 0;
-
-	/* Allocate a new inode and set it up
-	*/
-	inode* i = malloc(sizeof(inode));
-	i->mode = 0x81C0;		// File, User mask
-	i->size = n;
-	i->atime = time();
-	i->ctime = time();
-	i->mtime = time();
-	i->dtime = 0;
-	i->links_count = 1;		/* Setting this to 0 = BIG NO NO */
-/* SECTION: BLOCK ALLOCATION AND DATA WRITING */
-	int q = 0;
-
-	while(sz) {
-		uint32_t block_num = ext2_alloc_block();
-
-		// Do we write BLOCK_SIZE or sz bytes?
-		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
-
-		if (q < 12) {
-			i->block[q] = block_num;
-		} else if (q == 12) {
-			indirect = block_num;
-			i->block[q] = indirect;
-		//	printf("Indirect block allocated: %d\n", indirect);
-			block_num = ext2_alloc_block();
-		//	printf("Next data block allocated: %d\n", block_num);
-			ext2_write_indirect(indirect, block_num, 0);
-		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
-			ext2_write_indirect(indirect, block_num, q - 12);
-		}
-
-		i->blocks += 2;			// 2 sectors per block
-
-
-		/* Go ahead and write the data to disk */
-		buffer* b = buffer_read(1, block_num);
-		memset(b->data, 0, BLOCK_SIZE);
-		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
-		buffer_write(b);
-	//	printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
-		q++;
-		sz -= c;	// decrease bytes to write
-		s->free_blocks_count--;		// Update Superblock
-		bg->free_blocks_count--;	// Update BG
-
-	}
-	if (indirect) {
-		ext2_write_indirect(indirect, 0, i->blocks/2);
-		i->blocks+=2;
-	}
-//	printf("Wrote %d blocks to inode %d\n", i->blocks, inode_num);
-/*	for (int q = 0; q <= i->blocks/2; q++) {
-		if (q < 12)
-			printf("Direct   Block[%d] = %d\n", q, i->block[q]);
-		else if (q == 12)
-			printf("Indirect Block is @= %d\n", i->block[q]);
-		else if (q > 12)
-			printf("Indirect Block[%d] = %d\n", q - 13, ext2_read_indirect(indirect, q-13));
-	}*/
-
-
-/* SECTION: INODE ALLOCATION AND DATA WRITING */
-	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
-	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
-	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
-	bg += block_group;
-
-	printf("Inode %d:\tGroup # %d\tIndex # %d\tTable block # %d\n", inode_num, block_group, index, bg->inode_table+block);
-	printf("\tOffset into block: %x\n", offset);
-
-	// Not using the inode table was the issue...
-	buffer* ib = buffer_read(1, bg->inode_table+block);
-
-	memcpy((uint32_t) ib->data + offset, i, INODE_SIZE);
-	buffer_write(ib);
-
-/* SECTION: UPDATE DIRECTORY */
-	inode* rootdir = ext2_inode(1, 2);
-	buffer* rootdir_buf = buffer_read(1, rootdir->block[0]);
-
-	dirent* d = (dirent*) rootdir_buf->data;
-	int sum = 0;
-	int calc = 0;
-	int new_entry_len = (sizeof(dirent) + strlen(name) + 4) & ~0x3;
-	do {
-		
-		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
-		sum += d->rec_len;
-		if (d->inode == inode_num)
-			break;
-		if (d->rec_len != calc && sum == 1024) {
-			/* if the calculated value doesn't match the given value,
-			then we've reached the final entry on the block */
-			sum -= d->rec_len;
-			if (sum + new_entry_len > 1024) {
-				/* we need to allocate another block for the parent
-				directory*/
-				printf("PANIC! out of room");
-				return NULL;
-			}
-			d->rec_len = calc; 		// Resize this entry to it's real size
-			d = (dirent*)((uint32_t) d + d->rec_len);
-			break;
-
-		}
-		//printf("name %s\n",d->name);
-		d = (dirent*)((uint32_t) d + d->rec_len);
-
-
-	} while(sum < 1024);
-
-	/* d is now pointing at a blank entry, right after the resized last entry */
-	d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
-	d->inode = inode_num;
-	d->file_type = 1;
-	d->name_len = strlen(name);
-
-	/* memcpy() causes a page fault */
-	for (int q = 0; q < strlen(name); q++) 
-		d->name[q] = name[q];
-
-	/* Write the buffer to the disk */
-	buffer_write(rootdir_buf);
-
-	/* Update superblock information */
-	s->free_inodes_count--;
-	s->wtime = time(NULL);
-	ext2_superblock_rw(1,s);
-
-	/* Update block group descriptors */
-	bg->free_inodes_count--;
-	ext2_blockdesc_rw(1, bg);
-
-	//free(i);
-	return inode_num;
-}
-
-
-int ext2_touch(char* name, char* data, size_t n) {
-	uint32_t inode_num = ext2_alloc_inode();
-	return ext2_write_inode(inode_num, name, data, n);
-}
 
 
 /* Adds a file to root directory */
@@ -524,19 +275,16 @@ int add_to_disk(char* file_name, int i) {
 	printf("%s %d\n", file_name, sz);
 
 	if (i) {
-		ext2_write_inode(i, file_name, buffer, sz);
+		ext2_write_file(i, file_name, buffer, 0x1C0, sz);
 	} else {
-		ext2_touch(file_name, buffer, sz);
+		ext2_touch_file(file_name, buffer, 0x1C0, sz);
 	}
-
-
-
 	free(buffer);
 }
 
 
 int main(int argc, char* argv[]) {
-	static char usage[] = "usage: ext2util -x disk.img [-wrd] [-i inode | -f fname]";
+	static char usage[] = "usage: ext2util -x disk.img [-l] [-wrd] [-i inode | -f fname]";
 	extern char *optarg;
 	extern int optind;
 	int c, err = 0;
@@ -546,7 +294,7 @@ int main(int argc, char* argv[]) {
 	char* file_name = "default_file_name";
 	char* image = "default";
 
-	while ( (c = getopt(argc, argv, "wrdi:f:x:")) != -1) 
+	while ( (c = getopt(argc, argv, "lwrdi:f:x:")) != -1) 
 		switch(c) {
 			case 'x':
 				image = optarg;
@@ -571,6 +319,9 @@ int main(int argc, char* argv[]) {
 				break;
 			case '?':
 				err = 1;
+				break;
+			case 'l':
+				flags |= 0x80;
 				break;
 		}
 
@@ -616,6 +367,9 @@ int main(int argc, char* argv[]) {
 	} else if (flags & 0x4) {
 
 	}
+
+	if (flags & 0x80) 
+		lsroot();
 
 
 }
