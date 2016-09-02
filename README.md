@@ -5,7 +5,12 @@ I've moved most of my development pipeline to the Windows Subsystem for Linux, a
 However, WSL doesn't provide an ability to mount disk image files, since there is no loop device.
 I needed a tool to be able to read/write/debug ext2 disk image files - so I wrote one.
 
-Currently, there is no option parsing, but that will be added later.
+-x [disk.img]
+-w is write (-i designates inode, optional | -f designates file to write)
+-r is read (non functional)
+-d is dump inode information
+-l is ls root directory
+options can be combined like any other getopt program, i.e. ./ext2util -x disk.img -wdi 5 -f stage.bin
 
 To generate an ext2 image, execute the following commands:
 <pre>
