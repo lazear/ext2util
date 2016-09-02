@@ -13,7 +13,7 @@ usage:
 -d is dump inode information
 -l is ls root directory
 </pre>
-options can be combined like any other getopt program, i.e. ./ext2util -x disk.img -wdi 5 -f stage.bin
+options can be combined like any other getopt program, <pre>i.e. ./ext2util -x disk.img -wdi 5 -f stage.bin</pre>
 
 To generate an ext2 image, execute the following commands:
 <pre>
