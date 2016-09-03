@@ -6,17 +6,17 @@ However, WSL doesn't provide an ability to mount disk image files, since there i
 I needed a tool to be able to read/write/debug ext2 disk image files - so I wrote one.
 
 usage:
-<pre>
+<pre> 
 -x [disk.img]
 -w is write (-i designates inode, optional | -f designates file to write)
 -r is read (non functional)
 -d is dump inode information
 -l is ls root directory
 </pre>
-options can be combined like any other getopt program, <pre>i.e. ./ext2util -x disk.img -wdi 5 -f stage.bin</pre>
+options can be combined like any other getopt program, <pre>$ ./ext2util -x disk.img -wdi 5 -f stage.bin</pre>
 
 To generate an ext2 image, execute the following commands:
 <pre>
-dd if=/dev/zero of=ext2.img bs=1k count=16k
-mke2fs ext2.img
+$ dd if=/dev/zero of=ext2.img bs=1k count=16k
+$ mke2fs ext2.img
 </pre>
