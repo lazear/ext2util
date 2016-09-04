@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include "ext2.h"
 #include <stdint.h>
+#include <assert.h>
 
 
 
@@ -39,16 +40,17 @@ void ls(dirent* d) {
 }
 
 void lsroot() {
-	inode* i = ext2_inode(1, 2);			// Root directory
+	inode* i = ext2_read_inode(1, 2);			// Root directory
 
 	char* buf = malloc(BLOCK_SIZE*i->blocks/2);
 	memset(buf, 0, BLOCK_SIZE*i->blocks/2);
 
 	for (int q = 0; q < i->blocks / 2; q++) {
+		printf("block %d\n", i->block[q]);
 		buffer* b = buffer_read(1, i->block[q]);
 		memcpy((uint32_t)buf+(q * BLOCK_SIZE), b->data, BLOCK_SIZE);
 	}
-
+	assert(i->blocks);
 	dirent* d = (dirent*) buf;
 	
 	int sum = 0;
@@ -65,11 +67,12 @@ void lsroot() {
 			then we've reached the final entry on the block */
 			//sum -= d->rec_len;
 	
-			d->rec_len = calc; 		// Resize this entry to it's real size
+		//	d->rec_len = calc; 		// Resize this entry to it's real size
 		//	d = (dirent*)((uint32_t) d + d->rec_len);
 
 		}
-	printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
+		if (d->rec_len)
+			printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
 	
 		d = (dirent*)((uint32_t) d + d->rec_len);
 

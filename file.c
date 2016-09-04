@@ -41,9 +41,65 @@ void ext2_add_link(int inode_num) {
 }
 
 /* Check to see if links == 0. If so, begin the process of file deletion,
-which consists of marking the inode and blocks as free */
+which consists of:
+	* marking the inode and blocks as free 
+	* removing inode from root directory
+*/
 void ext2_remove_link(int inode_num) {
+	inode* in = ext2_read_inode(1, inode_num);
+	if (--in->links_count) {
+		ext2_write_inode(1, inode_num, in);
+		return;
+	}
 
+	superblock* s = ext2_superblock(1);
+	block_group_descriptor* bg = ext2_blockdesc(1);
+
+	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
+	bg+= block_group;
+
+	int num_blocks 		= in->blocks / 2;
+	buffer* bbm = buffer_read(1, bg->block_bitmap);
+	buffer* ibm = buffer_read(1, bg->inode_bitmap);
+	int indirect = 0;
+	int blocknum = 0;
+
+	if (num_blocks > 12) {
+		indirect = in->block[12];
+	}
+
+	for (int i = 0; i < num_blocks; i++) {
+		if (i < 12) {
+			blocknum = in->block[i];
+			in->block[i] = 0;
+		}
+		else
+			blocknum = ext2_read_indirect(indirect, i-12);
+		if (!blocknum)
+			break;
+		blocknum = blocknum % s->blocks_per_group;
+		ext2_set_bit(bbm->data, blocknum-1, 0);
+	}
+	ext2_set_bit(ibm->data, ((inode_num-1) % s->inodes_per_group), 0);
+	buffer_write(ibm);
+	buffer_write(bbm);
+
+
+
+		/* Update superblock information */
+	s->free_inodes_count++;
+	s->free_blocks_count += num_blocks;
+	s->wtime = time(NULL);
+	ext2_superblock_rw(1,s);
+
+	/* Update block group descriptors */
+	bg->free_inodes_count++;
+	bg->free_blocks_count += num_blocks;
+	ext2_blockdesc_rw(1, bg);
+
+	in->block[12] = 0;
+
+	ext2_write_inode(1, inode_num, in);
 }
 
 
@@ -62,6 +118,13 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	block_group_descriptor* bg = ext2_blockdesc(1);
 	int sz = n;
 	int indirect = 0;
+	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
+	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
+	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
+	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
+	
+	bg += block_group;
+	printf("Block group: %d\n", block_group);
 
 	/* Allocate a new inode and set it up
 	*/
@@ -77,7 +140,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	int q = 0;
 
 	while(sz) {
-		uint32_t block_num = ext2_alloc_block();
+		uint32_t block_num = ext2_alloc_block(block_group);
 
 		// Do we write BLOCK_SIZE or sz bytes?
 		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
@@ -88,7 +151,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 			indirect = block_num;
 			i->block[q] = indirect;
 		//	printf("Indirect block allocated: %d\n", indirect);
-			block_num = ext2_alloc_block();
+			block_num = ext2_alloc_block(block_group);
 		//	printf("Next data block allocated: %d\n", block_num);
 			ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
@@ -103,7 +166,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 		memset(b->data, 0, BLOCK_SIZE);
 		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 		buffer_write(b);
-	//	printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
+		printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
 		q++;
 		sz -= c;	// decrease bytes to write
 		s->free_blocks_count--;		// Update Superblock
@@ -114,35 +177,32 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 		ext2_write_indirect(indirect, 0, i->blocks/2);
 		i->blocks+=2;
 	}
+
+
+	buffer* bitmap_buf = buffer_read(1, bg->inode_bitmap);
+	uint32_t* bitmap = malloc(BLOCK_SIZE);
+	memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
+
+	bitmap[index/32] |= (1 << (index % 32));
+	printf("%x\n", bitmap[index /32]);
+	memcpy(bitmap_buf->data, bitmap, BLOCK_SIZE);
+	buffer_write(bitmap_buf);	
+
 	printf("Wrote %d blocks to inode %d\n", i->blocks, inode_num);
-/*	for (int q = 0; q <= i->blocks/2; q++) {
-		if (q < 12)
-			printf("Direct   Block[%d] = %d\n", q, i->block[q]);
-		else if (q == 12)
-			printf("Indirect Block is @= %d\n", i->block[q]);
-		else if (q > 12)
-			printf("Indirect Block[%d] = %d\n", q - 13, ext2_read_indirect(indirect, q-13));
-	}*/
 
 
 /* SECTION: INODE ALLOCATION AND DATA WRITING */
-	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
-	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
-	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
-	bg += block_group;
-
-	// printf("Inode %d:\tGroup # %d\tIndex # %d\tTable block # %d\n", inode_num, block_group, index, bg->inode_table+block);
-	// printf("\tOffset into block: %x\n", offset);
 
 	// Not using the inode table was the issue...
+	printf("%d, %d\n", bg->inode_table, block );
 	buffer* ib = buffer_read(1, bg->inode_table+block);
 
 	memcpy((uint32_t) ib->data + offset, i, INODE_SIZE);
 	buffer_write(ib);
 
 /* SECTION: UPDATE DIRECTORY */
-	inode* rootdir = ext2_inode(1, 2);
+	inode* rootdir = ext2_read_inode(1, 2);
+	printf("Root: %d\n", rootdir->block[0]);
 	buffer* rootdir_buf = buffer_read(1, rootdir->block[0]);
 
 	dirent* d = (dirent*) rootdir_buf->data;
@@ -170,11 +230,13 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 			d = (dirent*)((uint32_t) d + d->rec_len);
 			break;
 
+
 		}
 		//printf("name %s\n",d->name);
 		d = (dirent*)((uint32_t) d + d->rec_len);
 
-
+		if (d->rec_len == 0)
+			break;
 	} while(sum < 1024);
 
 	/* d is now pointing at a blank entry, right after the resized last entry */
@@ -197,7 +259,9 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 
 	/* Update block group descriptors */
 	bg->free_inodes_count--;
-	ext2_blockdesc_rw(1, bg);
+	ext2_blockdesc_rw(1, bg, block_group);
+
+//	printf("(%x): %x\n", bg, sizeof(block_group_descriptor) * block_group);
 
 	//free(i);
 	return inode_num;

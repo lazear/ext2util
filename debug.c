@@ -40,8 +40,8 @@ block_group_descriptor* bg_dump(block_group_descriptor* bg) {
 	buffer* bbm = buffer_read(1, bg->block_bitmap);
 	buffer* ibm = buffer_read(1, bg->inode_bitmap);
 
-	printf("First free block: %d\n", ext_first_free(bbm->data, 1024)+1);
-	printf("First free inode: %d\n", ext_first_free(ibm->data, 1024)+1);
+	printf("First free block: %d\n", ext2_first_free(bbm->data, 1024)+1);
+	printf("First free inode: %d\n", ext2_first_free(ibm->data, 1024)+1);
 	return bg;
 }
 
