@@ -124,7 +124,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
 	
 	bg += block_group;
-	printf("Block group: %d\n", block_group);
+//	printf("Block group: %d\n", block_group);
 
 	/* Allocate a new inode and set it up
 	*/
@@ -166,7 +166,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 		memset(b->data, 0, BLOCK_SIZE);
 		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 		buffer_write(b);
-		printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
+	//	printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
 		q++;
 		sz -= c;	// decrease bytes to write
 		s->free_blocks_count--;		// Update Superblock
@@ -188,7 +188,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	memcpy(bitmap_buf->data, bitmap, BLOCK_SIZE);
 	buffer_write(bitmap_buf);	
 
-	printf("Wrote %d blocks to inode %d\n", i->blocks, inode_num);
+//	printf("Wrote %d blocks to inode %d\n", i->blocks, inode_num);
 
 
 /* SECTION: INODE ALLOCATION AND DATA WRITING */
