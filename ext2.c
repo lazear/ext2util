@@ -277,7 +277,7 @@ int add_to_disk(char* file_name, int i) {
 	printf("%s %d\n", file_name, sz);
 
 	if (i) {
-		ext2_write_file(i, file_name, buffer, 0x1C0, sz);
+		ext2_write_file(i, file_name, buffer, 0x1C0 | EXT2_IFREG, sz);
 	} else {
 		ext2_touch_file(file_name, buffer, 0x1C0, sz);
 	}
@@ -374,8 +374,13 @@ int main(int argc, char* argv[]) {
 			inode_dump(ext2_read_inode(1, inode_num));
 	}
 
+		ext2_create_dir("NEWDIR", 2);
+
+
 	if (flags & 0x80) 
 		lsroot();
+
+
 
 
 }

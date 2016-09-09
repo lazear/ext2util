@@ -37,7 +37,10 @@ SOFTWARE.
 
 /* Increment the link count of an inode */
 void ext2_add_link(int inode_num) {
-
+	inode* in = ext2_read_inode(1, inode_num);
+	in->links_count++;
+	ext2_write_inode(1, inode_num, in);
+	return;
 }
 
 /* Check to see if links == 0. If so, begin the process of file deletion,
@@ -129,7 +132,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	/* Allocate a new inode and set it up
 	*/
 	inode* i = malloc(sizeof(inode));
-	i->mode = mode | EXT2_IFREG;		// File, User mask
+	i->mode = mode;		// File
 	i->size = n;
 	i->atime = time();
 	i->ctime = time();
@@ -240,17 +243,17 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	} while(sum < 1024);
 
 	/* d is now pointing at a blank entry, right after the resized last entry */
-	d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
-	d->inode = inode_num;
-	d->file_type = 1;
-	d->name_len = strlen(name);
+	// d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
+	// d->inode = inode_num;
+	// d->file_type = 1;
+	// d->name_len = strlen(name);
 
-	/* memcpy() causes a page fault */
-	for (int q = 0; q < strlen(name); q++) 
-		d->name[q] = name[q];
+	// /* memcpy() causes a page fault */
+	// for (int q = 0; q < strlen(name); q++) 
+	// 	d->name[q] = name[q];
 
-	/* Write the buffer to the disk */
-	buffer_write(rootdir_buf);
+	// /* Write the buffer to the disk */
+	// buffer_write(rootdir_buf);
 
 	/* Update superblock information */
 	s->free_inodes_count--;
@@ -269,7 +272,7 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 
 int ext2_touch_file(char* name, char* data, int mode, size_t n) {
 	uint32_t inode_num = ext2_alloc_inode();
-	return ext2_write_file(inode_num, name, data, mode, n);
+	return ext2_write_file(inode_num, name, data, mode | EXT2_IFREG, n);
 }
 
 

@@ -20,15 +20,23 @@
 # SOFTWARE.
 
 FINAL	= ext2util
-OBJS	= *.o
+OBJS	= debug.o \
+		  dir.o \
+		  ext2.o \
+		  file.o 
+
 CC 		= gcc
 CCFLAGS = -O -w -std=c99
 
 
+
 all: compile 
 
-compile:
+compile: 
 	$(CC) $(CCFLAGS) *.c -o $(FINAL)
+
+clean:
+	rm *.o
 
 new:
 	dd if=/dev/zero of=ext2.img bs=1k count=32k
