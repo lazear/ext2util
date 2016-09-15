@@ -243,17 +243,17 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	} while(sum < 1024);
 
 	/* d is now pointing at a blank entry, right after the resized last entry */
-	// d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
-	// d->inode = inode_num;
-	// d->file_type = 1;
-	// d->name_len = strlen(name);
+	d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
+	d->inode = inode_num;
+	d->file_type = 1;
+	d->name_len = strlen(name);
 
-	// /* memcpy() causes a page fault */
-	// for (int q = 0; q < strlen(name); q++) 
-	// 	d->name[q] = name[q];
+	/* memcpy() causes a page fault */
+	for (int q = 0; q < strlen(name); q++) 
+		d->name[q] = name[q];
 
-	// /* Write the buffer to the disk */
-	// buffer_write(rootdir_buf);
+	/* Write the buffer to the disk */
+	buffer_write(rootdir_buf);
 
 	/* Update superblock information */
 	s->free_inodes_count--;
