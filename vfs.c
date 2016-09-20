@@ -17,7 +17,7 @@ typedef struct _vfs_inode {
 	uint32_t mtime;			// Last modified time
 	uint32_t dtime;			// Deletion time
 
-	vfs_file_ops vfo;
+//	vfs_file_ops vfo;
 
 
 } vfs_inode;

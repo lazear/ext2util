@@ -173,13 +173,6 @@ int ext2_first_free(uint32_t* b, int sz) {
 	return -1;
 }
 
-int ext2_set_bit(uint32_t* b, int bit, int val) {
-
-	b[bit/32] &=  ~(1 << (bit % 32));
-	return bit;
-}
-
-
 /* 
 Finds a free block from the block descriptor group, and sets it as used
 */
@@ -190,19 +183,16 @@ uint32_t ext2_alloc_block(int block_group) {
 	bg += block_group;
 	// Read the block and inode bitmaps from the block descriptor group
 	buffer* bitmap_buf;
-	uint32_t* bitmap;
+	uint32_t* bitmap = malloc(BLOCK_SIZE);
 	uint32_t num = 0;
 	do {
 
 		bitmap_buf = buffer_read(1, bg->block_bitmap);
-		bitmap = malloc(BLOCK_SIZE);
 		memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
-
 		// Find the first free bit in both bitmaps
 		bg++;
 		block_group++;
 	} while( (num = ext2_first_free(bitmap, BLOCK_SIZE)) == -1);	
-
 
 	// Should use a macro, not "32"
 	bitmap[num / 32] |= (1<<(num % 32));
@@ -216,19 +206,23 @@ uint32_t ext2_alloc_block(int block_group) {
 }
 
 
-
 /* 
 Finds a free inode from the block descriptor group, and sets it as used
 */
 uint32_t ext2_alloc_inode() {
 	block_group_descriptor* bg = ext2_blockdesc(1);
 	// Read the block and inode bitmaps from the block descriptor group
-	buffer* bitmap_buf = buffer_read(1, bg->inode_bitmap);
-	uint32_t* bitmap = malloc(BLOCK_SIZE);
-	memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
 
-	// Find the first free bit in both bitmaps
-	uint32_t num = ext2_first_free(bitmap, BLOCK_SIZE);
+	buffer* bitmap_buf;
+	uint32_t* bitmap = malloc(BLOCK_SIZE);
+	uint32_t num = 0;
+	do {
+
+		bitmap_buf = buffer_read(1, bg->inode_bitmap);
+		memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
+		// Find the first free bit in both bitmaps
+		bg++;
+	} while( (num = ext2_first_free(bitmap, BLOCK_SIZE)) == -1);	
 
 	// Should use a macro, not "32"
 	bitmap[num / 32] |= (1<<(num % 32));
@@ -240,6 +234,29 @@ uint32_t ext2_alloc_inode() {
 	free(bitmap);				
 	return num + 1;	// 1 indexed				
 }
+
+
+uint32_t ext2_free_inode(int i_no) {
+	block_group_descriptor* bg = ext2_blockdesc(1);
+	// Read the block and inode bitmaps from the block descriptor group
+	buffer* bitmap_buf = buffer_read(1, bg->inode_bitmap);
+	uint32_t* bitmap = malloc(BLOCK_SIZE);
+	memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
+
+	// Find the first free bit in both bitmaps
+	uint32_t num = ext2_first_free(bitmap, BLOCK_SIZE);
+
+	// Should use a macro, not "32"
+	bitmap[num / 32] &= ~(1 << (num % 32));
+
+	// Update bitmaps and write to disk
+	memcpy(bitmap_buf->data, bitmap, BLOCK_SIZE);	
+	buffer_write(bitmap_buf);								
+	// Free our bitmaps
+	free(bitmap);				
+	return i_no;
+}
+
 // Converts to same endian-ness as sublime for hex viewing
 uint32_t byte_order(uint32_t i) {
 	uint32_t x;
@@ -277,10 +294,12 @@ int add_to_disk(char* file_name, int i) {
 	printf("%s %d\n", file_name, sz);
 
 	if (i) {
-		ext2_write_file(i, file_name, buffer, 0x1C0 | EXT2_IFREG, sz);
+		printf("no touchy\n");
+		ext2_write_file(i, EXT2_ROOTDIR, file_name, buffer, 0x1C0 | EXT2_IFREG, sz);
 	} else {
-		ext2_touch_file(file_name, buffer, 0x1C0, sz);
+		ext2_touch_file(2, file_name, buffer, 0x1C0, sz);
 	}
+
 	free(buffer);
 }
 
@@ -357,7 +376,7 @@ int main(int argc, char* argv[]) {
 			printf("Specify an inode or file name\n");
 			return;
 		}
-		if ((flags & 0x60) == 0x60) {		\
+		if ((flags & 0x60) == 0x60) {	
 			// Inode & File
 			add_to_disk(file_name, inode_num);
 		} else if (flags & 0x40) {	
@@ -377,6 +396,6 @@ int main(int argc, char* argv[]) {
 		lsroot();
 
 
-
+	//ext2_gen_dirent("New_entry", 5, 1);
 
 }

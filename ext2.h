@@ -42,6 +42,7 @@ Each block group has a backup superblock as it's first block
 #define SECTOR_SIZE		512
 #define EXT2_BOOT		0			// Block 0 is bootblock
 #define EXT2_SUPER		1			// Block 1 is superblock
+#define EXT2_ROOTDIR	2
 #define EXT2_MAGIC		0x0000EF53
 
 typedef struct superblock_s {
@@ -142,6 +143,18 @@ typedef struct inode_s {
 #define EXT2_IROTH		0x0004		//others read
 #define EXT2_IWOTH		0x0002		//others write
 #define EXT2_IXOTH		0x0001		//others execute
+
+
+#define EXT2_FT_UNKNOWN		0	// Unknown File Type
+#define EXT2_FT_REG_FILE	1	// Regular File
+#define EXT2_FT_DIR			2	// Directory File
+#define EXT2_FT_CHRDEV		3	// Character Device
+#define EXT2_FT_BLKDEV		4	// Block Device
+#define EXT2_FT_FIFO		5	// Buffer File
+#define EXT2_FT_SOCK		6	// Socket File
+#define EXT2_FT_SYMLINK		7	// Symbolic Lin
+
+
 /*
 Directories must be 4byte aligned, and cannot extend between multiple
 blocks on the disk */

@@ -81,9 +81,13 @@ void ext2_remove_link(int inode_num) {
 		if (!blocknum)
 			break;
 		blocknum = blocknum % s->blocks_per_group;
-		ext2_set_bit(bbm->data, blocknum-1, 0);
+	//	ext2_set_bit(bbm->data, blocknum-1, 0);
+		bbm->data[(blocknum-1)/32] &= ~( 1 << (blocknum-1) % 32);
 	}
-	ext2_set_bit(ibm->data, ((inode_num-1) % s->inodes_per_group), 0);
+	bbm->data[((inode_num-1) % s->inodes_per_group)/32] &= \
+		~( 1 << ((inode_num-1) % s->inodes_per_group) % 32);
+	 
+	//ext2_set_bit(ibm->data, ((inode_num-1) % s->inodes_per_group), 0);
 	buffer_write(ibm);
 	buffer_write(bbm);
 
@@ -106,7 +110,11 @@ void ext2_remove_link(int inode_num) {
 }
 
 
-int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n) {
+/* 
+Currently writes data to a new inode 
+Need to rewrite this function to handle existing inodes, with overwrite behavior
+*/
+int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
 	/* 
 	Things we need to do:
 		* Find the first free inode # and free blocks needed
@@ -127,25 +135,39 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
 	
 	bg += block_group;
-//	printf("Block group: %d\n", block_group);
 
-	/* Allocate a new inode and set it up
-	*/
-	inode* i = malloc(sizeof(inode));
+	inode* i = ext2_read_inode(1, inode_num);
+
+	/* We use creation time as a marker for existing inode */
+	if (!i->ctime && !i->blocks) {
+		bg->free_inodes_count--;
+		s->free_inodes_count--;
+	}
+
 	i->mode = mode;		// File
 	i->size = n;
-	i->atime = time();
-	i->ctime = time();
-	i->mtime = time();
+	i->atime = time(NULL);
+	i->ctime = (i->ctime) ? i->ctime : time(NULL);
+	i->mtime = time(NULL);
 	i->dtime = 0;
 	i->links_count = 1;		/* Setting this to 0 = BIG NO NO */
-/* SECTION: BLOCK ALLOCATION AND DATA WRITING */
-	int q = 0;
 
+	int q = 0;		// Block counter
 	while(sz) {
-		uint32_t block_num = ext2_alloc_block(block_group);
 
-		// Do we write BLOCK_SIZE or sz bytes?
+		uint32_t block_num = 0;
+		
+		/* Have blocks already been allocated for this inode? */
+		if (i->block[q] != 0) {
+			block_num = i->block[q];
+		} else {	
+			block_num = ext2_alloc_block(block_group);
+			s->free_blocks_count--;		// Update Superblock
+			bg->free_blocks_count--;	// Update BG
+			i->blocks += 2;			// 2 sectors per block
+		}
+
+		/* Do we write BLOCK_SIZE or sz bytes? */
 		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
 
 		if (q < 12) {
@@ -153,126 +175,57 @@ int ext2_write_file(int inode_num, char* name, char* data, int mode, uint32_t n)
 		} else if (q == 12) {
 			indirect = block_num;
 			i->block[q] = indirect;
-		//	printf("Indirect block allocated: %d\n", indirect);
 			block_num = ext2_alloc_block(block_group);
-		//	printf("Next data block allocated: %d\n", block_num);
+
 			ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
+
+			block_num = ext2_read_indirect(indirect, q - 12);
+			block_num = (block_num) ? block_num : ext2_alloc_block(block_group);
 			ext2_write_indirect(indirect, block_num, q - 12);
 		}
-
-		i->blocks += 2;			// 2 sectors per block
-
+		
 
 		/* Go ahead and write the data to disk */
 		buffer* b = buffer_read(1, block_num);
 		memset(b->data, 0, BLOCK_SIZE);
 		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 		buffer_write(b);
-	//	printf("[%d]\twrite from offset %d to block %d, indirect %d\n", q, q*BLOCK_SIZE, block_num, indirect);
+
 		q++;
 		sz -= c;	// decrease bytes to write
-		s->free_blocks_count--;		// Update Superblock
-		bg->free_blocks_count--;	// Update BG
-
 	}
 	if (indirect) {
 		ext2_write_indirect(indirect, 0, i->blocks/2);
 		i->blocks+=2;
 	}
 
+	/* Mark inode as used in the inode bitmap */
+	buffer* b = buffer_read(1, bg->inode_bitmap);
+	b->data[index/32] |= (1 << (index % 32));
+	buffer_write(b);	
 
-	buffer* bitmap_buf = buffer_read(1, bg->inode_bitmap);
-	uint32_t* bitmap = malloc(BLOCK_SIZE);
-	memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
+	/* Write inode structure to disk */
+	b = buffer_read(1, bg->inode_table+block);
+	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
+	buffer_write(b);
 
-	bitmap[index/32] |= (1 << (index % 32));
-	printf("%x\n", bitmap[index /32]);
-	memcpy(bitmap_buf->data, bitmap, BLOCK_SIZE);
-	buffer_write(bitmap_buf);	
-
-//	printf("Wrote %d blocks to inode %d\n", i->blocks, inode_num);
-
-
-/* SECTION: INODE ALLOCATION AND DATA WRITING */
-
-	// Not using the inode table was the issue...
-	printf("%d, %d\n", bg->inode_table, block );
-	buffer* ib = buffer_read(1, bg->inode_table+block);
-
-	memcpy((uint32_t) ib->data + offset, i, INODE_SIZE);
-	buffer_write(ib);
-
-/* SECTION: UPDATE DIRECTORY */
-	inode* rootdir = ext2_read_inode(1, 2);
-	printf("Root: %d\n", rootdir->block[0]);
-	buffer* rootdir_buf = buffer_read(1, rootdir->block[0]);
-
-	dirent* d = (dirent*) rootdir_buf->data;
-	int sum = 0;
-	int calc = 0;
-	int new_entry_len = (sizeof(dirent) + strlen(name) + 4) & ~0x3;
-	do {
-		
-		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
-		sum += d->rec_len;
-		if (d->inode == inode_num)
-			break;
-		if (d->rec_len != calc && sum == 1024) {
-			/* if the calculated value doesn't match the given value,
-			then we've reached the final entry on the block */
-			sum -= d->rec_len;
-			if (sum + new_entry_len > 1024) {
-				/* we need to allocate another block for the parent
-				directory*/
-				printf("PANIC! out of room");
-				return NULL;
-			}
-			d->rec_len = calc; 		// Resize this entry to it's real size
-			d = (dirent*)((uint32_t) d + d->rec_len);
-			break;
-
-
-		}
-		//printf("name %s\n",d->name);
-		d = (dirent*)((uint32_t) d + d->rec_len);
-
-		if (d->rec_len == 0)
-			break;
-	} while(sum < 1024);
-
-	/* d is now pointing at a blank entry, right after the resized last entry */
-	d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
-	d->inode = inode_num;
-	d->file_type = 1;
-	d->name_len = strlen(name);
-
-	/* memcpy() causes a page fault */
-	for (int q = 0; q < strlen(name); q++) 
-		d->name[q] = name[q];
-
-	/* Write the buffer to the disk */
-	buffer_write(rootdir_buf);
+	/* Add to parent directory */
+	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);
 
 	/* Update superblock information */
-	s->free_inodes_count--;
 	s->wtime = time(NULL);
-	ext2_superblock_rw(1,s);
+	ext2_superblock_rw(1, s);
 
 	/* Update block group descriptors */
-	bg->free_inodes_count--;
 	ext2_blockdesc_rw(1, bg, block_group);
 
-//	printf("(%x): %x\n", bg, sizeof(block_group_descriptor) * block_group);
-
-	//free(i);
 	return inode_num;
 }
 
-int ext2_touch_file(char* name, char* data, int mode, size_t n) {
+int ext2_touch_file(int parent, char* name, char* data, int mode, size_t n) {
 	uint32_t inode_num = ext2_alloc_inode();
-	return ext2_write_file(inode_num, name, data, mode | EXT2_IFREG, n);
+	return ext2_write_file(inode_num, parent, name, data, mode | EXT2_IFREG, n);
 }
 
 

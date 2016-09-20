@@ -28,30 +28,31 @@ SOFTWARE.
 #include <stdint.h>
 #include <assert.h>
 
-/* Create a new directory
-Need to handle cases where this entry causes an overflow of the parent directory,
-i.e. force allocation of a new block */
-dirent* ext2_create_dir(char* name, int parent_inode) {
-	int mode = EXT2_IFDIR | EXT2_IRUSR | EXT2_IWUSR | EXT2_IXUSR;
-	int n = 0;
 
-	dirent* this = malloc(sizeof(dirent));					// our new directory entry
-	buffer* b;
-	inode* i = ext2_read_inode(1, parent_inode);		// Parent directory
-	char* data;
-	b = buffer_read(1, i->block[i->blocks/2 - 1]);
+/* Add an inode into parent_inode */
+int ext2_add_child(int parent_inode, int i_no, char* name, int type) {
 
-	assert(i->blocks);
-	
-	dirent* d = (dirent*) b->data;
+	inode* rootdir = ext2_read_inode(1, parent_inode);
+	assert(rootdir->blocks);
+	assert(rootdir->block[0]);
+
+	buffer* rootdir_buf = buffer_read(1, rootdir->block[0]);
+	dirent* d = (dirent*) rootdir_buf->data;
+
 	int sum = 0;
 	int calc = 0;
 	int new_entry_len = (sizeof(dirent) + strlen(name) + 4) & ~0x3;
 	do {
-		
 		// Calculate the 4byte aligned size of each entry
 		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
+
+		/* Child already exists here */
+		if (d->inode == i_no)
+			return -1;
+
+		if (strcmp(d->name, name) == 0)
+			return -1;
 
 		if (d->rec_len != calc && sum == 1024) {
 			/* if the calculated value doesn't match the given value,
@@ -60,66 +61,64 @@ dirent* ext2_create_dir(char* name, int parent_inode) {
 			if (sum + new_entry_len > 1024) {
 				/* we need to allocate another block for the parent
 				directory*/
-
 				printf("PANIC! out of room");
 				return NULL;
 			}
-			printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
 			d->rec_len = calc; 		// Resize this entry to it's real size
 			d = (dirent*)((uint32_t) d + d->rec_len);
-
 			break;
-
-
 		}
-		if (d->rec_len)
-			printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
 		//printf("name %s\n",d->name);
 		d = (dirent*)((uint32_t) d + d->rec_len);
-		//if (d->rec_len == 0)
-		//	break;
+
+		if (d->rec_len == 0)
+			break;
 	} while(sum < 1024);
 
-	uint32_t this_inode = ext2_alloc_inode();
-	superblock* s = ext2_superblock(1);
-	int block_group = (this_inode - 1) / s->inodes_per_group; // block group #
-
 	/* d is now pointing at a blank entry, right after the resized last entry */
-	d->rec_len = BLOCK_SIZE - ((uint32_t)d - (uint32_t)b->data);
-	d->inode = this_inode;
-	d->file_type = 2;
-	d->name_len = strlen(name);
+	d->rec_len 		= BLOCK_SIZE - ((uint32_t)d - (uint32_t)rootdir_buf->data);
+	d->inode 		= i_no;
+	d->file_type 	= 1;
+	d->name_len 	= strlen(name);
 
-	/* memcpy() causes a page fault */
 	for (int q = 0; q < strlen(name); q++) 
 		d->name[q] = name[q];
 
-	buffer_write(b);	// Update the parent directory blocks
+	/* Write the buffer to the disk */
+	buffer_write(rootdir_buf);
 
-	inode* thisi = malloc(sizeof(inode)); 
-	thisi->blocks = 2;
+	return 1;
+}
+
+
+/* Create a new directory
+Need to handle cases where this entry causes an overflow of the parent directory,
+i.e. force allocation of a new block */
+dirent* ext2_create_dir(char* name, int parent_inode) {
+	int mode = EXT2_IFDIR | EXT2_IRUSR | EXT2_IWUSR | EXT2_IXUSR;
+	int i_no = ext2_alloc_inode();
+	//int block_group = (i_no - 1) / s->inodes_per_group; // block group #
+
+	inode* in = malloc(sizeof(inode)); 
+	in->blocks = 2;
 	puts("DEBUG1");
-	thisi->block[0] = ext2_alloc_block(block_group);
+	in->block[0] = ext2_alloc_block(1);
 	puts("DEBUG2");
-	thisi->mode = mode;		// File
-	thisi->size = n;
-	thisi->atime = time();
-	thisi->ctime = time();
-	thisi->mtime = time();
-	thisi->dtime = 0;
-	thisi->links_count = 1;		/* Setting this to 0 = BIG NO NO */
+	in->mode = mode;	
+	in->size = 0;
+	in->atime = time();
+	in->ctime = time();
+	in->mtime = time();
+	in->dtime = 0;
+	in->links_count = 1;		/* Setting this to 0 = BIG NO NO */
 
-	ext2_write_inode(1, this_inode, i);
 
-	return NULL;
+	ext2_write_inode(1, i_no, in);
+	assert(ext2_add_child(parent_inode, i_no, name, EXT2_FT_DIR));
 
-	//ext2_write_file(this_inode, name, data, mode, n);
+	return i_no;
 }
 
-/* Add an inode into parent_inode, increase link count */
-int ext2_link_dirent(int parent_inode, int this_inode) {
-
-}
 
 void ls(dirent* d) {
 	do{
