@@ -210,6 +210,8 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
 	buffer_write(b);
 
+//	ext2_inode_rw(1, inode_num, &i);
+
 	/* Add to parent directory */
 	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);
 
