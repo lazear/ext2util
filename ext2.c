@@ -202,6 +202,11 @@ uint32_t ext2_alloc_block(int block_group) {
 	buffer_write(bitmap_buf);								
 	// Free our bitmaps
 	free(bitmap);				
+	s->free_inodes_count--;
+	ext2_superblock_rw(1, s);
+	bg->free_inodes_count--;
+	/* Update block group descriptors */
+	ext2_blockdesc_rw(1, bg, block_group);
 	return num + ((block_group - 1) * s->blocks_per_group) + 1;	// 1 indexed				
 }
 

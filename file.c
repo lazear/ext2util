@@ -156,33 +156,26 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	while(sz) {
 
 		uint32_t block_num = 0;
-		
-		/* Have blocks already been allocated for this inode? */
-		if (i->block[q] != 0) {
-			block_num = i->block[q];
-		} else {	
-			block_num = ext2_alloc_block(block_group);
-			s->free_blocks_count--;		// Update Superblock
-			bg->free_blocks_count--;	// Update BG
-			i->blocks += 2;			// 2 sectors per block
-		}
 
 		/* Do we write BLOCK_SIZE or sz bytes? */
 		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
 
 		if (q < 12) {
+			block_num = (i->block[q]) ? i->block[q] : ext2_alloc_block(block_group);
 			i->block[q] = block_num;
+
 		} else if (q == 12) {
+			block_num = (i->block[q]) ? i->block[q] : ext2_alloc_block(block_group);
 			indirect = block_num;
 			i->block[q] = indirect;
-			block_num = ext2_alloc_block(block_group);
 
 			ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
 
-			block_num = ext2_read_indirect(indirect, q - 12);
-			block_num = (block_num) ? block_num : ext2_alloc_block(block_group);
+			//block_num = ext2_read_indirect(indirect, q - 12);
+			block_num = ext2_alloc_block(block_group);
 			ext2_write_indirect(indirect, block_num, q - 12);
+			printf("block %d\n", block_num);
 		}
 		
 
@@ -191,12 +184,12 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 		memset(b->data, 0, BLOCK_SIZE);
 		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 		buffer_write(b);
-
+		i->blocks += 2;			// 2 sectors per block
 		q++;
 		sz -= c;	// decrease bytes to write
 	}
 	if (indirect) {
-		ext2_write_indirect(indirect, 0, i->blocks/2);
+		ext2_write_indirect(indirect, 0, q - 12);
 		i->blocks+=2;
 	}
 
