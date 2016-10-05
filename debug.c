@@ -62,7 +62,7 @@ void inode_dump(inode* in) {
 	printf("Flags\t%x\n", in->flags);			// EXT2 behavior
 	printf("Blocks:\n");
 	for (int i =0; i < in->blocks/2; i++) {
-		if (i < 12)
+		if (i <= 12)
 			printf("%d ", in->block[i]);		// Block pointers. Last 3 are indirect
 		else
 			printf("%d ", ext2_read_indirect(in->block[12], i-12));

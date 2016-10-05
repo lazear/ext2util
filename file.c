@@ -153,6 +153,7 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	i->links_count = 1;		/* Setting this to 0 = BIG NO NO */
 
 	int q = 0;		// Block counter
+	buffer* indb;
 	while(sz) {
 
 		uint32_t block_num = 0;
@@ -165,33 +166,43 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 			i->block[q] = block_num;
 
 		} else if (q == 12) {
-			block_num = (i->block[q]) ? i->block[q] : ext2_alloc_block(block_group);
-			indirect = block_num;
-			i->block[q] = indirect;
 
+			block_num = ext2_alloc_block(block_group);
+			indirect = block_num;
+
+			indb = buffer_read(1, indirect);
+			memset(indb->data, 0, BLOCK_SIZE);
+			buffer_write(indb);
+
+			i->block[q] = indirect;
+			printf("INDIRECT: %d", indirect);
 			ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
 
 			//block_num = ext2_read_indirect(indirect, q - 12);
 			block_num = ext2_alloc_block(block_group);
-			ext2_write_indirect(indirect, block_num, q - 12);
-			printf("block %d\n", block_num);
+			//ext2_write_indirect(indirect, block_num, q - 12);
+			ext2_write_indirect(indirect, block_num, q-12);
 		}
 		
-
-		/* Go ahead and write the data to disk */
-		buffer* b = buffer_read(1, block_num);
-		memset(b->data, 0, BLOCK_SIZE);
-		memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
-		buffer_write(b);
+		if (q != 12) {
+					/* Go ahead and write the data to disk */
+			buffer* b = buffer_read(1, block_num);
+			memset(b->data, 0, BLOCK_SIZE);
+			memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
+			buffer_write(b);
+		}
 		i->blocks += 2;			// 2 sectors per block
 		q++;
 		sz -= c;	// decrease bytes to write
 	}
+
 	if (indirect) {
-		ext2_write_indirect(indirect, 0, q - 12);
+		ext2_write_indirect(indirect, 0, q-12);
 		i->blocks+=2;
 	}
+
+	
 
 	/* Mark inode as used in the inode bitmap */
 	buffer* b = buffer_read(1, bg->inode_bitmap);
@@ -202,8 +213,6 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	b = buffer_read(1, bg->inode_table+block);
 	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
 	buffer_write(b);
-
-//	ext2_inode_rw(1, inode_num, &i);
 
 	/* Add to parent directory */
 	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);
@@ -251,6 +260,7 @@ void* ext2_read_file(inode* in) {
 	for (int i = 0; i < num_blocks; i++) {
 		if (i < 12) 
 			blocknum = in->block[i];
+		else if (i == 12);
 		else
 			blocknum = ext2_read_indirect(indirect, i-12);
 		if (!blocknum)

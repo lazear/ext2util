@@ -248,18 +248,16 @@ uint32_t ext2_free_inode(int i_no) {
 	uint32_t* bitmap = malloc(BLOCK_SIZE);
 	memcpy(bitmap, bitmap_buf->data, BLOCK_SIZE);
 
-	// Find the first free bit in both bitmaps
-	uint32_t num = ext2_first_free(bitmap, BLOCK_SIZE);
-
+	i_no -= 1;
 	// Should use a macro, not "32"
-	bitmap[num / 32] &= ~(1 << (num % 32));
+	bitmap[i_no / 32] &= ~(1 << (i_no % 32));
 
 	// Update bitmaps and write to disk
 	memcpy(bitmap_buf->data, bitmap, BLOCK_SIZE);	
 	buffer_write(bitmap_buf);								
 	// Free our bitmaps
 	free(bitmap);				
-	return i_no;
+	return i_no + 1;
 }
 
 // Converts to same endian-ness as sublime for hex viewing
