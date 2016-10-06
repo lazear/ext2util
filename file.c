@@ -176,13 +176,13 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 
 			i->block[q] = indirect;
 			printf("INDIRECT: %d", indirect);
-			ext2_write_indirect(indirect, block_num, 0);
+			//ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
 
 			//block_num = ext2_read_indirect(indirect, q - 12);
 			block_num = ext2_alloc_block(block_group);
 			//ext2_write_indirect(indirect, block_num, q - 12);
-			ext2_write_indirect(indirect, block_num, q-12);
+			ext2_write_indirect(indirect, block_num, q-13);
 		}
 		
 		if (q != 12) {
@@ -191,14 +191,16 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 			memset(b->data, 0, BLOCK_SIZE);
 			memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 			buffer_write(b);
+			sz -= c;	// decrease bytes to write
+					i->blocks += 2;			// 2 sectors per block
 		}
-		i->blocks += 2;			// 2 sectors per block
+
 		q++;
-		sz -= c;	// decrease bytes to write
+
 	}
 
 	if (indirect) {
-		ext2_write_indirect(indirect, 0, q-12);
+		ext2_write_indirect(indirect, 0, q-13);
 		i->blocks+=2;
 	}
 
@@ -258,16 +260,17 @@ void* ext2_read_file(inode* in) {
 
 	int blocknum = 0;
 	for (int i = 0; i < num_blocks; i++) {
-		if (i < 12) 
+		if (i < 12) {
 			blocknum = in->block[i];
-		else if (i == 12)
-			continue;
-		else
-			blocknum = ext2_read_indirect(indirect, i-12);
-		if (!blocknum)
-			break;
-		buffer* b = buffer_read(1, blocknum);
-		memcpy((uint32_t) buf + (i * BLOCK_SIZE), b->data, BLOCK_SIZE);
+			buffer* b = buffer_read(1, blocknum);
+			memcpy((uint32_t) buf + (i * BLOCK_SIZE), b->data, BLOCK_SIZE);
+		}
+		if (i > 12) {
+			blocknum = ext2_read_indirect(indirect, i-13);
+			buffer* b = buffer_read(1, blocknum);
+			memcpy((uint32_t) buf + ((i-1) * BLOCK_SIZE), b->data, BLOCK_SIZE);
+		}
+
 		//printf("%x\n", b->data[i]);
 	}
 	return buf;
