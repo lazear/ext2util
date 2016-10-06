@@ -260,7 +260,8 @@ void* ext2_read_file(inode* in) {
 	for (int i = 0; i < num_blocks; i++) {
 		if (i < 12) 
 			blocknum = in->block[i];
-		else if (i == 12);
+		else if (i == 12)
+			continue;
 		else
 			blocknum = ext2_read_indirect(indirect, i-12);
 		if (!blocknum)

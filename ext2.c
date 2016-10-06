@@ -388,7 +388,10 @@ int main(int argc, char* argv[]) {
 		}
 	} else if (flags & 0x2)	{	/* Read */
 		//ext2_remove_link(inode_num);
-		puts(ext2_read_file(ext2_read_inode(1, inode_num)));
+		if (flags & 0x40)
+			puts(ext2_read_file(ext2_read_inode(1, pathize(file_name))));
+		else
+			puts(ext2_read_file(ext2_read_inode(1, inode_num)));
 	} 
 	if (flags & 0x4) {
 		if (flags & 0x20)

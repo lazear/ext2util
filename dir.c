@@ -28,6 +28,18 @@ SOFTWARE.
 #include <stdint.h>
 #include <assert.h>
 
+/* Returns inode of file in a path /usr/sbin/file.c would return the inode
+number of file.c, or -1 if any member of the path cannot be found */
+int pathize(char* path) {
+	char* pch = strtok(path, "/");
+	int parent = 2;
+	while(pch) {
+		parent = ext2_find_child(pch, parent);
+		//printf("%s inode: %i\n", pch, parent);
+		pch = strtok(NULL, "/");
+	}
+	return parent;
+}
 
 /* Add an inode into parent_inode */
 int ext2_add_child(int parent_inode, int i_no, char* name, int type) {
@@ -90,6 +102,41 @@ int ext2_add_child(int parent_inode, int i_no, char* name, int type) {
 	return 1;
 }
 
+/* Finds an inode by name in dir_inode */
+int ext2_find_child(const char* name, int dir_inode) {
+	if (!dir_inode)
+		return -1;
+	inode* i = ext2_read_inode(1, dir_inode);			// Root directory
+
+	char* buf = malloc(BLOCK_SIZE*i->blocks/2);
+	memset(buf, 0, BLOCK_SIZE*i->blocks/2);
+
+	for (int q = 0; q < i->blocks / 2; q++) {
+		buffer* b = buffer_read(1, i->block[q]);
+		memcpy((uint32_t)buf+(q * BLOCK_SIZE), b->data, BLOCK_SIZE);
+	}
+
+	dirent* d = (dirent*) buf;
+	
+	int sum = 0;
+	int calc = 0;
+	do {
+		// Calculate the 4byte aligned size of each entry
+		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
+		sum += d->rec_len;
+		//printf("%2d  %10s\t%2d %3d\n", (int)d->inode, d->name, d->name_len, d->rec_len);
+		if (strncmp(d->name, name, d->name_len)== 0) {
+			
+			free(buf);
+			return d->inode;
+		}
+		d = (dirent*)((uint32_t) d + d->rec_len);
+
+	} while(sum < (1024 * i->blocks/2));
+	free(buf);
+	return -1;
+}
+
 
 /* Create a new directory
 Need to handle cases where this entry causes an overflow of the parent directory,
@@ -130,44 +177,33 @@ void ls(dirent* d) {
 }
 
 void lsroot() {
-	inode* i = ext2_read_inode(1, 2);		// Parent directory
-	char* buf = malloc(BLOCK_SIZE*i->blocks/2);
+	inode* i = ext2_read_inode(1, 2);			// Root directory
 
+	char* buf = malloc(BLOCK_SIZE*i->blocks/2);
 	memset(buf, 0, BLOCK_SIZE*i->blocks/2);
 
 	for (int q = 0; q < i->blocks / 2; q++) {
-		printf("block %d\n", i->block[q]);
 		buffer* b = buffer_read(1, i->block[q]);
 		memcpy((uint32_t)buf+(q * BLOCK_SIZE), b->data, BLOCK_SIZE);
 	}
-	assert(i->blocks);
+
 	dirent* d = (dirent*) buf;
 	
 	int sum = 0;
 	int calc = 0;
-	printf("ls: /\n");
 	do {
 		
 		// Calculate the 4byte aligned size of each entry
 		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
 
-		if (d->rec_len != calc && sum == 1024) {
-			/* if the calculated value doesn't match the given value,
-			then we've reached the final entry on the block */
-			//sum -= d->rec_len;
-	
-		//	d->rec_len = calc; 		// Resize this entry to it's real size
-		//	d = (dirent*)((uint32_t) d + d->rec_len);
+		printf("%2d  %10s\t%2d %3d\n", (int)d->inode, d->name, d->name_len, d->rec_len);
+		d = (dirent*)((char*)d + d->rec_len);
 
-		}
-		if (d->rec_len)
-			printf("%d\t/%s\trec: %d\n", d->inode, d->name, d->rec_len);
-	
-		d = (dirent*)((uint32_t) d + d->rec_len);
+	} while(sum < (1024 * i->blocks/2));
 
-
-	} while(sum < 1024);
 	free(buf);
 	return NULL;
 }
+
+
