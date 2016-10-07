@@ -1,0 +1,32 @@
+// sync.c
+
+#include "ext2.h"
+#include <stdio.h>
+
+
+void acquire_fs(struct ext2_fs *f) {
+
+}
+
+void release_fs(struct ext2_fs *f) {
+
+}
+
+void sync(struct ext2_fs *f) {
+	f->sb->wtime = time(NULL);
+	ext2_superblock_write(f);
+	ext2_blockdesc_write(f);
+}
+
+struct ext2_fs* ext2_mount(int dev) {
+	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
+	efs->dev = dev;
+	efs->block_size = 1024;
+	efs->sb = malloc(sizeof(superblock));
+	efs->bg = malloc(sizeof(block_group_descriptor) * 20);
+
+	printf("block size: %d\n", efs->block_size);
+	ext2_superblock_read(efs);
+
+	return efs;
+}
