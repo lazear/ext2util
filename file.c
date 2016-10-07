@@ -189,7 +189,7 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 					/* Go ahead and write the data to disk */
 			buffer* b = buffer_read(1, block_num);
 			memset(b->data, 0, BLOCK_SIZE);
-			memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
+			memcpy(b->data, (uint32_t) data + ( ((q>EXT2_IND_BLOCK) ? (q-1) : (q)) * BLOCK_SIZE), c);
 			buffer_write(b);
 			sz -= c;	// decrease bytes to write
 
