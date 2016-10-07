@@ -22,11 +22,12 @@ struct ext2_fs* ext2_mount(int dev) {
 	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
 	efs->dev = dev;
 	efs->block_size = 1024;
-	efs->sb = malloc(sizeof(superblock));
-	efs->bg = malloc(sizeof(block_group_descriptor) * 20);
+	efs->sb = NULL;
+	efs->bg = NULL;
 
 	printf("block size: %d\n", efs->block_size);
 	ext2_superblock_read(efs);
+	ext2_blockdesc_read(efs);
 
 	return efs;
 }

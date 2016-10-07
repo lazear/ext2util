@@ -116,12 +116,17 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
 	int num_to_read = (num_block_groups * sizeof(block_group_descriptor)) / f->block_size;
 	f->num_bg = num_block_groups;
+	num_to_read+=1;
+	printf("Number of block groups: %d (%d blocks)\n", f->num_bg, num_to_read);
 
-	block_group_descriptor* bg = malloc(num_block_groups* sizeof(block_group_descriptor));
+	if (!f->bg) {
+		f->bg = malloc(num_block_groups* sizeof(block_group_descriptor));
+	}
 	/* Above a certain block size to disk size ratio, we need more than one block */
+
 	for (int i = 0; i < num_to_read; i++) {
-		buffer* b = buffer_read(f, EXT2_SUPER + 1 + i);
-		memcpy((uint32_t) bg + i, b->data, f->block_size);
+		buffer* b = buffer_read(f, (EXT2_SUPER + i + 1));
+		memcpy((uint32_t) f->bg + i, b->data, f->block_size);
 	}
 	return 0;
 }

@@ -28,21 +28,21 @@ SOFTWARE.
 #include <stdint.h>
 #include <stdio.h>
 
-block_group_descriptor* bg_dump(block_group_descriptor* bg) {
+void bg_dump(struct ext2_fs *f) {
 	printf("Block group descriptor informaton:\n");
-	printf("Block bitmap %d\n", bg->block_bitmap);
-	printf("Inode bitmap %d\n", bg->inode_bitmap);
-	printf("Inode table  %d\n", bg->inode_table);
-	printf("Free blocks  %d\n", bg->free_blocks_count);
-	printf("Free inodes  %d\n", bg->free_inodes_count);
-	printf("Used dirs    %d\n", bg->used_dirs_count);
+	printf("%x\n", f->bg);
+	printf("Block bitmap %d\n", f->bg->block_bitmap);
+	printf("Inode bitmap %d\n", f->bg->inode_bitmap);
+	printf("Inode table  %d\n", f->bg->inode_table);
+	printf("Free blocks  %d\n", f->bg->free_blocks_count);
+	printf("Free inodes  %d\n", f->bg->free_inodes_count);
+	printf("Used dirs    %d\n", f->bg->used_dirs_count);
 	
-	buffer* bbm = buffer_read(1, bg->block_bitmap);
-	buffer* ibm = buffer_read(1, bg->inode_bitmap);
+	buffer* bbm = buffer_read(f, f->bg->block_bitmap);
+	buffer* ibm = buffer_read(f, f->bg->inode_bitmap);
 
 	printf("First free block: %d\n", ext2_first_free(bbm->data, 1024)+1);
 	printf("First free inode: %d\n", ext2_first_free(ibm->data, 1024)+1);
-	return bg;
 }
 
 

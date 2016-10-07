@@ -215,7 +215,7 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 	/* Write inode structure to disk */
 	ext2_write_inode(f, inode_num, i);
 	/* Add to parent directory */
-	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);
+	ext2_add_child(f, parent_dir, inode_num, name, EXT2_FT_REG_FILE);
 
 	/* Update superblock/blockdesc information on disk*/
 	sync(f);

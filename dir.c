@@ -186,9 +186,10 @@ char* gen_file_perm_string(uint16_t x) {
 void ls(struct ext2_fs *f, int inode_num) {
 	inode* i = ext2_read_inode(f, inode_num);			// Root directory
 
-	char* buf = malloc(f->block_size*i->blocks/2);
+	char* buf = malloc(f->block_size * i->blocks/2);
 	memset(buf, 0, f->block_size*i->blocks/2);
-
+	inode_dump(i);
+	
 	for (int q = 0; q < i->blocks / 2; q++) {
 		buffer* b = buffer_read(f, i->block[q]);
 		memcpy((uint32_t)buf+(q * f->block_size), b->data, f->block_size);
