@@ -41,7 +41,6 @@ inode* ext2_read_inode(struct ext2_fs *f, int i) {
 	int block 		= (index * INODE_SIZE) / f->block_size; 
 
 	bgd += block_group;
-	printf("reading inode: %d\n", i);
 	// Not using the inode table was the issue...
 	buffer* b = buffer_read(f, bgd->inode_table+block);
 	inode* in = malloc(sizeof(inode));
