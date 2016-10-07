@@ -31,73 +31,44 @@ SOFTWARE.
 #include <assert.h>
 
 
-inode* ext2_read_inode(int dev, int i) {
-	superblock* s = ext2_superblock(dev);
-	block_group_descriptor* bgd = ext2_blockdesc(dev);
-
-	assert(s->magic == EXT2_MAGIC);
-	assert(bgd);
+inode* ext2_read_inode(struct ext2_fs *f, int i) {
+	acquire_fs(f);
+	superblock* s = f->sb;
+	block_group_descriptor* bgd = f->bg;
 
 	int block_group = (i - 1) / s->inodes_per_group; // block group #
 	int index 		= (i - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
+	int block 		= (index * INODE_SIZE) / f->block_size; 
 
 	bgd += block_group;
 
 	// Not using the inode table was the issue...
-	buffer* b = buffer_read(dev, bgd->inode_table+block);
+	buffer* b = buffer_read(f, bgd->inode_table+block);
 	inode* in = malloc(sizeof(inode));
 	/* Switched to memcpy. This may avoid issues for OS level buffer caching. */
-	memcpy(in, ((uint32_t) b->data + (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE), sizeof(inode));
-	
+	memcpy(in, ((uint32_t) b->data + (index % (f->block_size/INODE_SIZE))*INODE_SIZE), sizeof(inode));
+	release_fs(f);
 	return in;
 }
 
-void ext2_write_inode(int dev, int inode_num, inode* i) {
-	superblock* s = ext2_superblock(dev);
-	block_group_descriptor* bgd = ext2_blockdesc(dev);
+void ext2_write_inode(struct ext2_fs *f, int inode_num, inode* i) {
+	acquire_fs(f);
+	superblock* s = f->sb;
+	block_group_descriptor* bgd = f->bg;
 
-	assert(s->magic == EXT2_MAGIC);
-	assert(bgd);
 
 	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
 	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
-	int offset		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
+	int block 		= (index * INODE_SIZE) / f->block_size; 
+	int offset		= (index % (f->block_size/INODE_SIZE))*INODE_SIZE;
 
 	bgd += block_group;
 
 	// Not using the inode table was the issue...
-	buffer* b = buffer_read(dev, bgd->inode_table+block);
+	buffer* b = buffer_read(f, bgd->inode_table+block);
 	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
-	buffer_write(b);
+	buffer_write(f, b);
 
-}
+	release_fs(f);
 
-int ext2_inode_rw(int dev, int inode_num, inode** iptr) {
-	superblock* s = ext2_superblock(dev);
-	block_group_descriptor* bgd = ext2_blockdesc(dev);
-
-	assert(s->magic == EXT2_MAGIC);
-	assert(bgd);
-	if (s->magic != EXT2_MAGIC || !bgd)
-		return -1;
-
-	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
-	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
-	int offset		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
-
-	bgd += block_group;
-
-	buffer* b = buffer_read(dev, bgd->inode_table+block);
-	if (*iptr) {
-		memcpy((uint32_t) b->data + offset, *iptr, INODE_SIZE);
-		buffer_write(b);
-	} else {
-		//*iptr = (inode*)((uint32_t) b->data + (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE);
-		memcpy(*iptr, ((uint32_t) b->data + offset), sizeof(inode));
-	
-	}
-	return 1;
 }

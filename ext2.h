@@ -39,13 +39,14 @@ Each block group has a backup superblock as it's first block
 
 #define NULL			((void*) 0)
 
-#define BLOCK_SIZE		1024
 #define SECTOR_SIZE		512
 #define EXT2_BOOT		0			// Block 0 is bootblock
 #define EXT2_SUPER		1			// Block 1 is superblock
 #define EXT2_ROOTDIR	2
 #define EXT2_MAGIC		0x0000EF53
 #define EXT2_IND_BLOCK 	12
+
+
 
 
 typedef struct superblock_s {
@@ -173,10 +174,21 @@ typedef struct dirent_s {
 
 typedef struct ide_buffer {
 	uint32_t block;				// block number
-	uint8_t data[BLOCK_SIZE];	// 1 disk sector of data
+	int flags;
+	uint8_t* data;	// 1 disk sector of data
 } buffer;
 
 
+struct ext2_fs {
+	int dev;
+	int block_size;
+	int num_bg;
+	int mutex;
+	superblock* sb;
+	block_group_descriptor* bg;
+};
+
+struct ext2_fs* gfsp;
 
 #define B_BUSY	0x1		// buffer is locked by a process
 #define B_VALID	0x2		// buffer has been read from disk

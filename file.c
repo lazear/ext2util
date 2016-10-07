@@ -36,10 +36,10 @@ SOFTWARE.
 
 
 /* Increment the link count of an inode */
-void ext2_add_link(int inode_num) {
-	inode* in = ext2_read_inode(1, inode_num);
+void ext2_add_link(struct ext2_fs *f, int inode_num) {
+	inode* in = ext2_read_inode(f, inode_num);
 	in->links_count++;
-	ext2_write_inode(1, inode_num, in);
+	ext2_write_inode(f, inode_num, in);
 	return;
 }
 
@@ -48,73 +48,73 @@ which consists of:
 	* marking the inode and blocks as free 
 	* removing inode from root directory
 */
-void ext2_remove_link(int inode_num) {
-	inode* in = ext2_read_inode(1, inode_num);
-	if (--in->links_count) {
-		ext2_write_inode(1, inode_num, in);
-		return;
-	}
+// void ext2_remove_link(struct ext2_fs *f, int inode_num) {
+// 	inode* in = ext2_read_inode(f, inode_num);
+// 	if (--in->links_count) {
+// 		ext2_write_inode(f, inode_num, in);
+// 		return;
+// 	}
 
-	superblock* s = ext2_superblock(1);
-	block_group_descriptor* bg = ext2_blockdesc(1);
+// 	superblock* s = f->sb;
+// 	block_group_descriptor* bg = f->bg;
 
-	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
-	bg+= block_group;
+// 	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
+// 	bg+= block_group;
 
-	int num_blocks 		= in->blocks / 2;
-	buffer* bbm = buffer_read(1, bg->block_bitmap);
-	buffer* ibm = buffer_read(1, bg->inode_bitmap);
-	int indirect = 0;
-	int blocknum = 0;
+// 	int num_blocks 		= in->blocks / 2;
+// 	buffer* bbm = buffer_read(f, bg->block_bitmap);
+// 	buffer* ibm = buffer_read(f, bg->inode_bitmap);
+// 	int indirect = 0;
+// 	int blocknum = 0;
 
-	if (num_blocks > 12) {
-		indirect = in->block[12];
-	}
+// 	if (num_blocks > 12) {
+// 		indirect = in->block[12];
+// 	}
 
-	for (int i = 0; i < num_blocks; i++) {
-		if (i < 12) {
-			blocknum = in->block[i];
-			in->block[i] = 0;
-		}
-		else
-			blocknum = ext2_read_indirect(indirect, i-12);
-		if (!blocknum)
-			break;
-		blocknum = blocknum % s->blocks_per_group;
-	//	ext2_set_bit(bbm->data, blocknum-1, 0);
-		bbm->data[(blocknum-1)/32] &= ~( 1 << (blocknum-1) % 32);
-	}
-	bbm->data[((inode_num-1) % s->inodes_per_group)/32] &= \
-		~( 1 << ((inode_num-1) % s->inodes_per_group) % 32);
+// 	for (int i = 0; i < num_blocks; i++) {
+// 		if (i < 12) {
+// 			blocknum = in->block[i];
+// 			in->block[i] = 0;
+// 		}
+// 		else
+// 			blocknum = ext2_read_indirect(f, indirect, i-12);
+// 		if (!blocknum)
+// 			break;
+// 		blocknum = blocknum % s->blocks_per_group;
+// 	//	ext2_set_bit(bbm->data, blocknum-1, 0);
+// 		bbm->data[(blocknum-1)/32] &= ~( 1 << (blocknum-1) % 32);
+// 	}
+// 	bbm->data[((inode_num-1) % s->inodes_per_group)/32] &= \
+// 		~( 1 << ((inode_num-1) % s->inodes_per_group) % 32);
 	 
-	//ext2_set_bit(ibm->data, ((inode_num-1) % s->inodes_per_group), 0);
-	buffer_write(ibm);
-	buffer_write(bbm);
+// 	//ext2_set_bit(ibm->data, ((inode_num-1) % s->inodes_per_group), 0);
+// 	buffer_write(f, ibm);
+// 	buffer_write(f, bbm);
 
 
 
-		/* Update superblock information */
-	s->free_inodes_count++;
-	s->free_blocks_count += num_blocks;
-	s->wtime = time(NULL);
-	ext2_superblock_rw(1,s);
+// 		/* Update superblock information */
+// 	s->free_inodes_count++;
+// 	s->free_blocks_count += num_blocks;
+// 	s->wtime = time(NULL);
+// 	ext2_superblock_rw(1,s);
 
-	/* Update block group descriptors */
-	bg->free_inodes_count++;
-	bg->free_blocks_count += num_blocks;
-	ext2_blockdesc_rw(1, bg);
+// 	/* Update block group descriptors */
+// 	bg->free_inodes_count++;
+// 	bg->free_blocks_count += num_blocks;
+// 	ext2_blockdesc_rw(1, bg);
 
-	in->block[12] = 0;
+// 	in->block[12] = 0;
 
-	ext2_write_inode(1, inode_num, in);
-}
+// 	ext2_write_inode(1, inode_num, in);
+// }
 
 
 /* 
 Currently writes data to a new inode 
 Need to rewrite this function to handle existing inodes, with overwrite behavior
 */
-int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
+int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
 	/* 
 	Things we need to do:
 		* Find the first free inode # and free blocks needed
@@ -125,18 +125,19 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 		* Update directory structures
 	*/
 
-	superblock* s = ext2_superblock(1);
-	block_group_descriptor* bg = ext2_blockdesc(1);
+	superblock* s = f->sb;
+	block_group_descriptor* bg = f->bg;
+
 	int sz = n;
 	int indirect = 0;
 	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
 	int index 		= (inode_num - 1) % s->inodes_per_group; // index into block group
-	int block 		= (index * INODE_SIZE) / BLOCK_SIZE; 
-	int offset 		= (index % (BLOCK_SIZE/INODE_SIZE))*INODE_SIZE;
+	int block 		= (index * INODE_SIZE) / f->block_size; 
+	int offset 		= (index % (f->block_size/INODE_SIZE))*INODE_SIZE;
 	
 	bg += block_group;
 
-	inode* i = ext2_read_inode(1, inode_num);
+	inode* i = ext2_read_inode(f, inode_num);
 
 	/* We use creation time as a marker for existing inode */
 	if (!i->ctime && !i->blocks) {
@@ -158,39 +159,39 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 
 		uint32_t block_num = 0;
 
-		/* Do we write BLOCK_SIZE or sz bytes? */
-		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
+		/* Do we write f->block_size or sz bytes? */
+		int c = (sz >= f->block_size) ? f->block_size : sz;
 
 		if (q < EXT2_IND_BLOCK ) {
-			block_num = ext2_alloc_block(block_group);
+			block_num = ext2_alloc_block(f, block_group);
 			i->block[q] = block_num;
 
 		} else if (q == EXT2_IND_BLOCK ) {
 
-			block_num = ext2_alloc_block(block_group);
+			block_num = ext2_alloc_block(f, block_group);
 			indirect = block_num;
 
-			indb = buffer_read(1, indirect);
-			memset(indb->data, 0, BLOCK_SIZE);
-			buffer_write(indb);
+			indb = buffer_read(f, indirect);
+			memset(indb->data, 0, f->block_size);
+			buffer_write(f, indb);
 
 			i->block[q] = indirect;
 			printf("INDIRECT: %d\n", indirect);
 			//ext2_write_indirect(indirect, block_num, 0);
-		} else if(q > EXT2_IND_BLOCK && q < ((BLOCK_SIZE/sizeof(uint32_t)) + EXT2_IND_BLOCK )) {
+		} else if(q > EXT2_IND_BLOCK && q < ((f->block_size/sizeof(uint32_t)) + EXT2_IND_BLOCK )) {
 
 			//block_num = ext2_read_indirect(indirect, q - EXT2_IND_BLOCK );
-			block_num = ext2_alloc_block(block_group);
+			block_num = ext2_alloc_block(f, block_group);
 			//ext2_write_indirect(indirect, block_num, q - EXT2_IND_BLOCK );
-			ext2_write_indirect(indirect, block_num, q-13);
+			ext2_write_indirect(f, indirect, block_num, q-13);
 		}
 		
 		if (q != EXT2_IND_BLOCK ) {
 					/* Go ahead and write the data to disk */
-			buffer* b = buffer_read(1, block_num);
-			memset(b->data, 0, BLOCK_SIZE);
-			memcpy(b->data, (uint32_t) data + ( ((q>EXT2_IND_BLOCK) ? (q-1) : (q)) * BLOCK_SIZE), c);
-			buffer_write(b);
+			buffer* b = buffer_read(f, block_num);
+			memset(b->data, 0, f->block_size);
+			memcpy(b->data, (uint32_t) data + ( ((q>EXT2_IND_BLOCK) ? (q-1) : (q)) * f->block_size), c);
+			buffer_write(f, b);
 			sz -= c;	// decrease bytes to write
 
 		}
@@ -199,55 +200,48 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	}
 
 	if (indirect) {
-		ext2_write_indirect(indirect, 0, q-13);
+		ext2_write_indirect(f, indirect, 0, q-13);
 		i->blocks+=2;
 	}
 
 	
 
 	/* Mark inode as used in the inode bitmap */
-	buffer* b = buffer_read(1, bg->inode_bitmap);
+	buffer* b = buffer_read(f, bg->inode_bitmap);
 	b->data[index/32] |= (1 << (index % 32));
-	buffer_write(b);	
+	buffer_write(f, b);	
+
 
 	/* Write inode structure to disk */
-	// b = buffer_read(1, bg->inode_table+block);
-	// memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
-	// buffer_write(b);
-	ext2_write_inode(1, inode_num, i);
-
+	ext2_write_inode(f, inode_num, i);
 	/* Add to parent directory */
 	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);
 
-	/* Update superblock information */
-	s->wtime = time(NULL);
-	ext2_superblock_rw(1, s);
-
-	/* Update block group descriptors */
-	ext2_blockdesc_rw(1, bg, block_group);
+	/* Update superblock/blockdesc information on disk*/
+	sync(f);
 
 	return inode_num;
 }
 
-int ext2_touch_file(int parent, char* name, char* data, int mode, size_t n) {
+int ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n) {
 	uint32_t inode_num = ext2_alloc_inode();
-	return ext2_write_file(inode_num, parent, name, data, mode | EXT2_IFREG, n);
+	return ext2_write_file(f, inode_num, parent, name, data, mode | EXT2_IFREG, n);
 }
 
 
-void* ext2_read_file(inode* in) {
+void* ext2_read_file(struct ext2_fs *f, inode* in) {
 	assert(in);
 	if(!in)
 		return NULL;
 
-	int num_blocks = in->blocks / (BLOCK_SIZE/SECTOR_SIZE);	
+	int num_blocks = in->blocks / (f->block_size/SECTOR_SIZE);	
 
 	assert(num_blocks != 0);
 	if (!num_blocks) 
 		return NULL;
 
 
-	size_t sz = BLOCK_SIZE*num_blocks;
+	size_t sz = f->block_size*num_blocks;
 	void* buf = malloc(sz);
 	assert(buf != NULL);
 
@@ -262,13 +256,13 @@ void* ext2_read_file(inode* in) {
 	for (int i = 0; i < num_blocks; i++) {
 		if (i < 12) {
 			blocknum = in->block[i];
-			buffer* b = buffer_read(1, blocknum);
-			memcpy((uint32_t) buf + (i * BLOCK_SIZE), b->data, BLOCK_SIZE);
+			buffer* b = buffer_read(f, blocknum);
+			memcpy((uint32_t) buf + (i * f->block_size), b->data, f->block_size);
 		}
 		if (i > 12) {
 			blocknum = ext2_read_indirect(indirect, i-13);
-			buffer* b = buffer_read(1, blocknum);
-			memcpy((uint32_t) buf + ((i-1) * BLOCK_SIZE), b->data, BLOCK_SIZE);
+			buffer* b = buffer_read(f, blocknum);
+			memcpy((uint32_t) buf + ((i-1) * f->block_size), b->data, f->block_size);
 		}
 
 		//printf("%x\n", b->data[i]);
