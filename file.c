@@ -192,11 +192,10 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 			memcpy(b->data, (uint32_t) data + (q * BLOCK_SIZE), c);
 			buffer_write(b);
 			sz -= c;	// decrease bytes to write
-					i->blocks += 2;			// 2 sectors per block
+
 		}
-
+		i->blocks += 2;			// 2 sectors per block
 		q++;
-
 	}
 
 	if (indirect) {
