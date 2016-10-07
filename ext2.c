@@ -43,6 +43,7 @@ allowing the ramdisk to emulate a hard disk
 #define NULL ((void*) 0)
 static int fp = NULL;
 
+//#define DEBUG
 
 /* Buffer_read and write are used as glue functions for code compatibility 
 with hard disk ext2 driver, which has buffer caching functions. Those will
@@ -52,7 +53,9 @@ buffer* buffer_read(struct ext2_fs *f, int block) {
 	b->block = block;
 	b->data = malloc(f->block_size);
 	pread(fp, b->data, f->block_size, block*f->block_size);
-
+	#ifdef DEBUG
+	printf("Read %d bytes from block %d\n", f->block_size, block);
+	#endif
 	return b;
 }
 
@@ -63,14 +66,37 @@ uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 	pwrite(fp, b->data, f->block_size, b->block * f->block_size);
 	// IDE handler should clear the flags
 	b->flags &= ~B_DIRTY;
-	free(b->data);
+	#ifdef DEBUG
+	printf("Wrote %d bytes to block %d\n", f->block_size, b->block);
+	#endif
+}
+
+/* Overloads for superblock read/write, since it is ALWAYS 1024 bytes in
+from the beginning of the disk, regardless of logical block size */
+buffer* buffer_read_superblock(struct ext2_fs* f) {
+	buffer* b = malloc(sizeof(buffer));
+	b->block = (f->block_size == 1024) ? 1 : 0;
+	b->data = malloc(f->block_size);
+	pread(fp, b->data, sizeof(superblock), 1024);
+	return b;
+}
+
+uint32_t buffer_write_superblock(struct ext2_fs *f, buffer* b) {
+	b->flags |= B_DIRTY;	// Dirty
+	pwrite(fp, b->data, sizeof(superblock), 1024);
+	// IDE handler should clear the flags
+	b->flags &= ~B_DIRTY;
 }
 
 int buffer_free(buffer* b) {
 	// On actual hardware, make sure that the dirty flag has been cleared
 	if (b->flags & B_DIRTY)
 		return -1;
-	free(b);
+	#ifdef DEBUG
+	printf("Freeing\n");
+	#endif
+	//free(b->data);
+
 	return 0;
 }
 
@@ -83,14 +109,18 @@ int ext2_superblock_read(struct ext2_fs *f) {
 	if (!f->sb)
 		f->sb = malloc(sizeof(superblock));
 
-	buffer* b = buffer_read(f, EXT2_SUPER);
+	buffer* b = buffer_read_superblock(f);
 	memcpy(f->sb, b->data, sizeof(superblock));
 	buffer_free(b);
 
+	#ifdef DEBUG
 	printf("Reading superblock\n");
+	#endif
 	assert(f->sb->magic == EXT2_MAGIC);
-	if (f->sb->magic != EXT2_MAGIC)
+	if (f->sb->magic != EXT2_MAGIC) {
+		printf("ABORT: INVALID SUPERBLOCK\n");
 		return NULL;
+	}
 	f->block_size = (1024 << f->sb->log_block_size);
 	return 0;
 }
@@ -103,9 +133,13 @@ int ext2_superblock_write(struct ext2_fs *f) {
 	if (f->sb->magic != EXT2_MAGIC) {	// Non-valid superblock, read 
 		return -1;
 	} else {						// Valid superblock, overwrite
-		buffer* b = buffer_read(f, EXT2_SUPER);
+		#ifdef DEBUG
+		printf("Writing to superblock\n");
+		#endif
+		buffer* b = buffer_read_superblock(f);
 		memcpy(b->data, f->sb, sizeof(superblock));
-		buffer_write(f, b);
+		buffer_write_superblock(f, b);
+		buffer_free(b);
 	}
 	return 0;
 }
@@ -116,17 +150,22 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
 	int num_to_read = (num_block_groups * sizeof(block_group_descriptor)) / f->block_size;
 	f->num_bg = num_block_groups;
-	num_to_read+=1;
+	num_to_read++;	// round up
+
+	#ifdef DEBUG
 	printf("Number of block groups: %d (%d blocks)\n", f->num_bg, num_to_read);
+	#endif
 
 	if (!f->bg) {
 		f->bg = malloc(num_block_groups* sizeof(block_group_descriptor));
 	}
-	/* Above a certain block size to disk size ratio, we need more than one block */
 
+	/* Above a certain block size to disk size ratio, we need more than one block */
 	for (int i = 0; i < num_to_read; i++) {
-		buffer* b = buffer_read(f, (EXT2_SUPER + i + 1));
-		memcpy((uint32_t) f->bg + i, b->data, f->block_size);
+		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
+		buffer* b = buffer_read(f, n);
+		memcpy((uint32_t) f->bg + (i*f->block_size), b->data, f->block_size);
+		buffer_free(b);
 	}
 	return 0;
 }
@@ -136,13 +175,19 @@ int ext2_blockdesc_write(struct ext2_fs *f) {
 
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
 	int num_to_read = (num_block_groups * sizeof(block_group_descriptor)) / f->block_size;
-
-	block_group_descriptor* bg = malloc(num_block_groups* sizeof(block_group_descriptor));
 	/* Above a certain block size to disk size ratio, we need more than one block */
+	num_to_read++;	// round up
 	for (int i = 0; i < num_to_read; i++) {
-		buffer* b = buffer_read(f, EXT2_SUPER + 1 + i);
-		memcpy(b->data, (uint32_t) bg + i, f->block_size);
+		bg_dump(f);
+		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
+		buffer* b = buffer_read(f, n);
+		memcpy(b->data, (uint32_t) f->bg + (i*f->block_size), f->block_size);
+
+		#ifdef DEBUG
+		printf("Writing to block group desc (block %d)\n", n);
+		#endif
 		buffer_write(f, b);
+		buffer_free(b);
 	}
 	return 0;
 }
@@ -191,62 +236,12 @@ uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group) {
 
 	s->free_inodes_count--;
 	bg->free_inodes_count--;
-
+	buffer_free(bitmap_buf);
 	return num + ((block_group - 1) * s->blocks_per_group) + 1;	// 1 indexed				
 }
 
 
-/* 
-Finds a free inode from the block descriptor group, and sets it as used
-*/
-uint32_t ext2_alloc_inode(struct ext2_fs *f) {
-	// Read the block and inode bitmaps from the block descriptor group
 
-	block_group_descriptor* bg = f->bg;
-	buffer* bitmap_buf;
-	uint32_t* bitmap = malloc(f->block_size);
-	uint32_t num = 0;
-
-	/* While there are no free inodes, go through the block groups */
-	do {
-
-		bitmap_buf = buffer_read(f, bg->inode_bitmap);
-		memcpy(bitmap, bitmap_buf->data, f->block_size);
-		// Find the first free bit in both bitmaps
-		bg++;
-	} while( (num = ext2_first_free(bitmap, f->block_size)) == -1);	
-
-	// Should use a macro, not "32"
-	bitmap[num / 32] |= (1<<(num % 32));
-
-	// Update bitmaps and write to disk
-	memcpy(bitmap_buf->data, bitmap, f->block_size);	
-	buffer_write(f, bitmap_buf);								
-	// Free our bitmaps
-	free(bitmap);				
-	return num + 1;	// 1 indexed				
-}
-
-
-uint32_t ext2_free_inode(struct ext2_fs *f, int i_no) {
-	block_group_descriptor* bg = f->bg;
-
-	// Read the block and inode bitmaps from the block descriptor group
-	buffer* bitmap_buf = buffer_read(f, bg->inode_bitmap);
-	uint32_t* bitmap = malloc(f->block_size);
-	memcpy(bitmap, bitmap_buf->data, f->block_size);
-
-	i_no -= 1;
-	// Should use a macro, not "32"
-	bitmap[i_no / 32] &= ~(1 << (i_no % 32));
-
-	// Update bitmaps and write to disk
-	memcpy(bitmap_buf->data, bitmap, f->block_size);	
-	buffer_write(f, bitmap_buf);								
-	// Free our bitmaps
-	free(bitmap);				
-	return i_no + 1;
-}
 
 // Converts to same endian-ness as sublime for hex viewing
 uint32_t byte_order(uint32_t i) {
@@ -285,7 +280,6 @@ int add_to_disk(struct ext2_fs *f, char* file_name, int i) {
 	printf("%s %d\n", file_name, sz);
 
 	if (i) {
-		printf("no touchy\n");
 		ext2_write_file(f, i, EXT2_ROOTDIR, file_name, buffer, 0x1C0 | EXT2_IFREG, sz);
 	} else {
 		ext2_touch_file(f, 2, file_name, buffer, 0x1C0, sz);
@@ -356,10 +350,8 @@ int main(int argc, char* argv[]) {
 
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
-	printf("Flags %d: %d %s\n", flags, inode_num, file_name );
 
 	gfsp = ext2_mount(1);
-
 	gfsp->sb->mtime = time(NULL);	// Update mount time
 
 	sb_dump(gfsp->sb);
@@ -389,13 +381,13 @@ int main(int argc, char* argv[]) {
 	} 
 	if (flags & 0x4) {
 		if (flags & 0x20)
-			inode_dump(ext2_read_inode(gfsp, inode_num));
+			inode_dump(gfsp, ext2_read_inode(gfsp, inode_num));
 	}
 
 	if (flags & 0x80) 
 		ls(gfsp, (flags & F_INODE) ? inode_num : 2);
 
-
+	return 0;
 	//ext2_gen_dirent("New_entry", 5, 1);
 
 }

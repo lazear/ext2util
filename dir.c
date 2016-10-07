@@ -63,14 +63,14 @@ int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, in
 		if (d->inode == i_no)
 			return -1;
 
-		if (strcmp(d->name, name) == 0)
-			return -1;
+		// if (strcmp(d->name, name) == 0)
+		// 	return -1;
 
-		if (d->rec_len != calc && sum == 1024) {
+		if (d->rec_len != calc && sum == f->block_size) {
 			/* if the calculated value doesn't match the given value,
 			then we've reached the final entry on the block */
 			sum -= d->rec_len;
-			if (sum + new_entry_len > 1024) {
+			if (sum + new_entry_len > f->block_size) {
 				/* we need to allocate another block for the parent
 				directory*/
 				printf("PANIC! out of room");
@@ -85,7 +85,7 @@ int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, in
 
 		if (d->rec_len == 0)
 			break;
-	} while(sum < 1024);
+	} while(sum < f->block_size);
 
 	/* d is now pointing at a blank entry, right after the resized last entry */
 	d->rec_len 		= f->block_size - ((uint32_t)d - (uint32_t)rootdir_buf->data);
@@ -107,9 +107,9 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 	if (!dir_inode)
 		return -1;
 	inode* i = ext2_read_inode(f, dir_inode);			// Root directory
-
-	char* buf = malloc(f->block_size*i->blocks/2);
-	memset(buf, 0, f->block_size*i->blocks/2);
+	int num_blocks = i->blocks / (f->block_size / SECTOR_SIZE);
+	char* buf = malloc(f->block_size*num_blocks);
+	memset(buf, 0, f->block_size*num_blocks);
 
 	for (int q = 0; q < i->blocks / 2; q++) {
 		buffer* b = buffer_read(f, i->block[q]);
@@ -132,7 +132,7 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 		}
 		d = (dirent*)((uint32_t) d + d->rec_len);
 
-	} while(sum < (1024 * i->blocks/2));
+	} while(sum < (1024 * num_blocks));
 	free(buf);
 	return -1;
 }
@@ -185,14 +185,16 @@ char* gen_file_perm_string(uint16_t x) {
 
 void ls(struct ext2_fs *f, int inode_num) {
 	inode* i = ext2_read_inode(f, inode_num);			// Root directory
+	int num_blocks = i->blocks / (f->block_size / SECTOR_SIZE);
+	int sz = f->block_size*num_blocks;
+	char* buf = malloc(sz);
+	memset(buf, 0, sz);
 
-	char* buf = malloc(f->block_size * i->blocks/2);
-	memset(buf, 0, f->block_size*i->blocks/2);
-	inode_dump(i);
-	
-	for (int q = 0; q < i->blocks / 2; q++) {
+	for (int q = 0; q < num_blocks; q++) {
+		printf("%d\n", i->block[q]);
 		buffer* b = buffer_read(f, i->block[q]);
-		memcpy((uint32_t)buf+(q * f->block_size), b->data, f->block_size);
+		memcpy((uint32_t)buf + (q*f->block_size), b->data, f->block_size);
+		buffer_free(b);
 	}
 
 	dirent* d = (dirent*) buf;
@@ -203,16 +205,17 @@ void ls(struct ext2_fs *f, int inode_num) {
 	do {
 		
 		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
+		if (d->rec_len == 0)
+			break;
 		
 		inode* di = ext2_read_inode(f, d->inode);
 		char* perm = (gen_file_perm_string(di->mode));
 		printf("%5d %s %20s\t%d\n", d->inode, perm, d->name, di->size);
 		free(perm);
-		d = (dirent*)((char*)d + d->rec_len);
 
-	} while(sum < (1024 * i->blocks/2));
+		d = (dirent*)((char*)d + d->rec_len);
+	} while(sum < (f->block_size * num_blocks));
 
 	free(buf);
 	return NULL;

@@ -27,7 +27,10 @@ struct ext2_fs* ext2_mount(int dev) {
 
 	printf("block size: %d\n", efs->block_size);
 	ext2_superblock_read(efs);
+
 	ext2_blockdesc_read(efs);
+
+	bg_dump(efs);
 
 	return efs;
 }

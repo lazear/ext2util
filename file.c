@@ -195,13 +195,13 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 			sz -= c;	// decrease bytes to write
 
 		}
-		i->blocks += 2;			// 2 sectors per block
+		i->blocks += (f->block_size / SECTOR_SIZE);			// 2 sectors per block
 		q++;
 	}
 
 	if (indirect) {
 		ext2_write_indirect(f, indirect, 0, q-13);
-		i->blocks+=2;
+		i->blocks += (f->block_size / SECTOR_SIZE);
 	}
 
 	
@@ -258,11 +258,13 @@ void* ext2_read_file(struct ext2_fs *f, inode* in) {
 			blocknum = in->block[i];
 			buffer* b = buffer_read(f, blocknum);
 			memcpy((uint32_t) buf + (i * f->block_size), b->data, f->block_size);
+			buffer_free(b);
 		}
 		if (i > 12) {
-			blocknum = ext2_read_indirect(indirect, i-13);
+			blocknum = ext2_read_indirect(f, indirect, i-13);
 			buffer* b = buffer_read(f, blocknum);
 			memcpy((uint32_t) buf + ((i-1) * f->block_size), b->data, f->block_size);
+			buffer_free(b);
 		}
 
 		//printf("%x\n", b->data[i]);

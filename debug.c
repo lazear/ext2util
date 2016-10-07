@@ -28,9 +28,8 @@ SOFTWARE.
 #include <stdint.h>
 #include <stdio.h>
 
-void bg_dump(struct ext2_fs *f) {
+void bg_dump(struct ext2_fs* f) {
 	printf("Block group descriptor informaton:\n");
-	printf("%x\n", f->bg);
 	printf("Block bitmap %d\n", f->bg->block_bitmap);
 	printf("Inode bitmap %d\n", f->bg->inode_bitmap);
 	printf("Inode table  %d\n", f->bg->inode_table);
@@ -41,13 +40,13 @@ void bg_dump(struct ext2_fs *f) {
 	buffer* bbm = buffer_read(f, f->bg->block_bitmap);
 	buffer* ibm = buffer_read(f, f->bg->inode_bitmap);
 
-	printf("First free block: %d\n", ext2_first_free(bbm->data, 1024)+1);
-	printf("First free inode: %d\n", ext2_first_free(ibm->data, 1024)+1);
+	printf("First free block: %d\n", ext2_first_free(bbm->data, f->block_size)+1);
+	printf("First free inode: %d\n", ext2_first_free(ibm->data, f->block_size)+1);
 }
 
 
 
-void inode_dump(inode* in) {
+void inode_dump(struct ext2_fs* f, inode* in) {
 
 	printf("Mode\t%x\t", in->mode);			// Format of the file, and access rights
 	printf("UID\t%x\t", in->uid);			// User id associated with file
@@ -61,11 +60,12 @@ void inode_dump(inode* in) {
 	printf("Sector\t%d\t", in->blocks);		// # of 512-bytes blocks reserved to contain the data
 	printf("Flags\t%x\n", in->flags);			// EXT2 behavior
 	printf("Blocks:\n");
-	for (int i =0; i < in->blocks/2; i++) {
+
+	for (int i =0; i < in->blocks/(f->block_size / SECTOR_SIZE); i++) {
 		if (i <= 12)
 			printf("%d ", in->block[i]);		// Block pointers. Last 3 are indirect
 		else
-			printf("%d ", ext2_read_indirect(in->block[12], i-12));
+			printf("%d ", ext2_read_indirect(f, in->block[12], i-12));
 	}
 	printf("\n");
 
