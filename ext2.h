@@ -26,6 +26,7 @@ SOFTWARE.
 
 
 /*
+http://www.nongnu.org/ext2-doc/ext2.html
 
 Block groups are found at the address (group number - 1) * blocks_per_group.
 Each block group has a backup superblock as it's first block
@@ -44,6 +45,8 @@ Each block group has a backup superblock as it's first block
 #define EXT2_SUPER		1			// Block 1 is superblock
 #define EXT2_ROOTDIR	2
 #define EXT2_MAGIC		0x0000EF53
+#define EXT2_IND_BLOCK 	12
+
 
 typedef struct superblock_s {
 	uint32_t inodes_count;			// Total # of inodes

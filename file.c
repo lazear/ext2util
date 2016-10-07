@@ -161,11 +161,11 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 		/* Do we write BLOCK_SIZE or sz bytes? */
 		int c = (sz >= BLOCK_SIZE) ? BLOCK_SIZE : sz;
 
-		if (q < 12) {
-			block_num = (i->block[q]) ? i->block[q] : ext2_alloc_block(block_group);
+		if (q < EXT2_IND_BLOCK ) {
+			block_num = ext2_alloc_block(block_group);
 			i->block[q] = block_num;
 
-		} else if (q == 12) {
+		} else if (q == EXT2_IND_BLOCK ) {
 
 			block_num = ext2_alloc_block(block_group);
 			indirect = block_num;
@@ -175,17 +175,17 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 			buffer_write(indb);
 
 			i->block[q] = indirect;
-			printf("INDIRECT: %d", indirect);
+			printf("INDIRECT: %d\n", indirect);
 			//ext2_write_indirect(indirect, block_num, 0);
-		} else if(q > 12 && q < ((BLOCK_SIZE/sizeof(uint32_t)) + 12)) {
+		} else if(q > EXT2_IND_BLOCK && q < ((BLOCK_SIZE/sizeof(uint32_t)) + EXT2_IND_BLOCK )) {
 
-			//block_num = ext2_read_indirect(indirect, q - 12);
+			//block_num = ext2_read_indirect(indirect, q - EXT2_IND_BLOCK );
 			block_num = ext2_alloc_block(block_group);
-			//ext2_write_indirect(indirect, block_num, q - 12);
+			//ext2_write_indirect(indirect, block_num, q - EXT2_IND_BLOCK );
 			ext2_write_indirect(indirect, block_num, q-13);
 		}
 		
-		if (q != 12) {
+		if (q != EXT2_IND_BLOCK ) {
 					/* Go ahead and write the data to disk */
 			buffer* b = buffer_read(1, block_num);
 			memset(b->data, 0, BLOCK_SIZE);
@@ -212,9 +212,10 @@ int ext2_write_file(int inode_num, int parent_dir, char* name, char* data, int m
 	buffer_write(b);	
 
 	/* Write inode structure to disk */
-	b = buffer_read(1, bg->inode_table+block);
-	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
-	buffer_write(b);
+	// b = buffer_read(1, bg->inode_table+block);
+	// memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
+	// buffer_write(b);
+	ext2_write_inode(1, inode_num, i);
 
 	/* Add to parent directory */
 	ext2_add_child(parent_dir, inode_num, name, EXT2_FT_REG_FILE);

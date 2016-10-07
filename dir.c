@@ -176,6 +176,23 @@ void ls(dirent* d) {
 	} while(d->inode);
 }
 
+char* gen_file_perm_string(uint16_t x) {
+	char *perm = malloc(10);
+	strcpy(perm, "----------");
+
+	if (x & EXT2_IFDIR) perm[0] = 'd';
+	if (x & EXT2_IRUSR) perm[1] = 'r';		//user read
+	if (x & EXT2_IWUSR) perm[2] = 'w';		//user write
+	if (x & EXT2_IXUSR) perm[3] = 'x';		//user execute
+	if (x & EXT2_IRGRP) perm[4] = 'r';		//group read
+	if (x & EXT2_IWGRP) perm[5] = 'w';		//group write
+	if (x & EXT2_IXGRP) perm[6] = 'x';		//group execute
+	if (x & EXT2_IROTH) perm[7] = 'r';		//others read
+	if (x & EXT2_IWOTH) perm[8] = 'w';		//others write
+	if (x & EXT2_IXOTH) perm[9] = 'x';
+	return perm;
+}
+
 void lsroot() {
 	inode* i = ext2_read_inode(1, 2);			// Root directory
 
@@ -191,13 +208,17 @@ void lsroot() {
 	
 	int sum = 0;
 	int calc = 0;
+	printf("i# permission %20s\tsize\n", "name");	
 	do {
 		
 		// Calculate the 4byte aligned size of each entry
 		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
-
-		printf("%2d  %10s\t%2d %3d\n", (int)d->inode, d->name, d->name_len, d->rec_len);
+		
+		inode* di = ext2_read_inode(1, d->inode);
+		char* perm = (gen_file_perm_string(di->mode));
+		printf("%2d %s %20s\t%d\n", d->inode, perm, d->name, di->size);
+		free(perm);
 		d = (dirent*)((char*)d + d->rec_len);
 
 	} while(sum < (1024 * i->blocks/2));
