@@ -40,6 +40,8 @@ allowing the ramdisk to emulate a hard disk
 #include <errno.h>
 #include <assert.h>
 
+#include <sys/stat.h>
+
 #define NULL ((void*) 0)
 static int fp = NULL;
 
@@ -54,7 +56,7 @@ buffer* buffer_read(struct ext2_fs *f, int block) {
 	b->data = malloc(f->block_size);
 	pread(fp, b->data, f->block_size, block*f->block_size);
 	#ifdef DEBUG
-	printf("Read %d bytes from block %d\n", f->block_size, block);
+	printf("Read %d bytes from block %d to buffer %x\n", f->block_size, block, b->data);
 	#endif
 	return b;
 }
@@ -63,6 +65,7 @@ buffer* buffer_read(struct ext2_fs *f, int block) {
 uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 	assert(b->block);
 	b->flags |= B_DIRTY;	// Dirty
+
 	pwrite(fp, b->data, f->block_size, b->block * f->block_size);
 	// IDE handler should clear the flags
 	b->flags &= ~B_DIRTY;
@@ -178,7 +181,6 @@ int ext2_blockdesc_write(struct ext2_fs *f) {
 	/* Above a certain block size to disk size ratio, we need more than one block */
 	num_to_read++;	// round up
 	for (int i = 0; i < num_to_read; i++) {
-		bg_dump(f);
 		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
 		buffer* b = buffer_read(f, n);
 		memcpy(b->data, (uint32_t) f->bg + (i*f->block_size), f->block_size);
@@ -276,15 +278,15 @@ int add_to_disk(struct ext2_fs *f, char* file_name, int i) {
 	lseek(fp_add, 0, SEEK_SET);		// back to beginning
 
 	char* buffer = malloc(sz);	// File buffer
-	pread(fp_add, buffer, sz, 0);
-	printf("%s %d\n", file_name, sz);
+	int ret = pread(fp_add, buffer, sz, 0);
+
 
 	if (i) {
 		ext2_write_file(f, i, EXT2_ROOTDIR, file_name, buffer, 0x1C0 | EXT2_IFREG, sz);
 	} else {
 		ext2_touch_file(f, 2, file_name, buffer, 0x1C0, sz);
 	}
-
+	printf("%s %d\n", file_name, sz);
 	free(buffer);
 }
 
@@ -351,6 +353,7 @@ int main(int argc, char* argv[]) {
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
 
+
 	gfsp = ext2_mount(1);
 	gfsp->sb->mtime = time(NULL);	// Update mount time
 
@@ -365,6 +368,11 @@ int main(int argc, char* argv[]) {
 			printf("Specify an inode or file name\n");
 			return;
 		}
+
+			struct stat s;
+		stat(file_name, &s);
+		printf("%s, %d bytes\n", file_name, s.st_size);
+
 		if ((flags & 0x60) == 0x60) {	
 			// Inode & File
 			add_to_disk(gfsp, file_name, inode_num);

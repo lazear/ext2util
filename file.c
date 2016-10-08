@@ -155,6 +155,9 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 
 	int q = 0;		// Block counter
 	buffer* indb;
+	printf("block size: %d\n", f->block_size);
+
+
 	while(sz) {
 
 		uint32_t block_num = 0;
@@ -176,24 +179,25 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 			buffer_write(f, indb);
 
 			i->block[q] = indirect;
-			printf("INDIRECT: %d\n", indirect);
+
 			//ext2_write_indirect(indirect, block_num, 0);
 		} else if(q > EXT2_IND_BLOCK && q < ((f->block_size/sizeof(uint32_t)) + EXT2_IND_BLOCK )) {
-
-			//block_num = ext2_read_indirect(indirect, q - EXT2_IND_BLOCK );
 			block_num = ext2_alloc_block(f, block_group);
-			//ext2_write_indirect(indirect, block_num, q - EXT2_IND_BLOCK );
 			ext2_write_indirect(f, indirect, block_num, q-13);
 		}
 		
 		if (q != EXT2_IND_BLOCK ) {
-					/* Go ahead and write the data to disk */
+			/* Go ahead and write the data to disk */
 			buffer* b = buffer_read(f, block_num);
 			memset(b->data, 0, f->block_size);
-			memcpy(b->data, (uint32_t) data + ( ((q>EXT2_IND_BLOCK) ? (q-1) : (q)) * f->block_size), c);
-			buffer_write(f, b);
-			sz -= c;	// decrease bytes to write
 
+			int offset = ((q > EXT2_IND_BLOCK) ? (q-1) : (q) )* f->block_size;
+	
+			memcpy(b->data, data + offset, c);
+
+			buffer_write(f, b);
+			buffer_free(b);
+			sz -= c;	// decrease bytes to write
 		}
 		i->blocks += (f->block_size / SECTOR_SIZE);			// 2 sectors per block
 		q++;
@@ -202,9 +206,7 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 	if (indirect) {
 		ext2_write_indirect(f, indirect, 0, q-13);
 		i->blocks += (f->block_size / SECTOR_SIZE);
-	}
-
-	
+	}	
 
 	/* Mark inode as used in the inode bitmap */
 	buffer* b = buffer_read(f, bg->inode_bitmap);
