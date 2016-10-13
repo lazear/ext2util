@@ -171,35 +171,46 @@ typedef struct dirent_s {
 } __attribute__((packed)) dirent;
 
 /* IMPORTANT: Inode addresses start at 1 */
-
-typedef struct ide_buffer {
-	uint32_t block;				// block number
-	int flags;
-	uint8_t* data;	// 1 disk sector of data
-} buffer;
-
-
 struct ext2_fs {
 	int dev;
 	int block_size;
 	int num_bg;
 	int mutex;
+	struct ide_buffer** cache;
 	superblock* sb;
 	block_group_descriptor* bg;
+	
 };
+
+
+typedef struct ide_buffer {
+	uint32_t block;				// block number
+	int flags;
+
+
+	struct ide_buffer* next;
+	struct ide_buffer* prev;
+
+	struct ide_buffer* last;
+	struct ide_buffer** head;
+
+	uint8_t* data;	// 1 disk sector of data
+} buffer;
+
+struct filesystem {
+	union {
+		struct ext2_fs* ext2;
+	} info;
+	struct ide_buffer* cache;
+};
+
+
 
 struct ext2_fs* gfsp;
 
 #define B_BUSY	0x1		// buffer is locked by a process
 #define B_VALID	0x2		// buffer has been read from disk
 #define B_DIRTY	0x4		// buffer has been written to
-
-
-#define B_BUSY	0x1		// buffer is locked by a process
-#define B_VALID	0x2		// buffer has been read from disk
-#define B_DIRTY	0x4		// buffer has been written to
-
-
 
 
 

@@ -45,15 +45,16 @@ allowing the ramdisk to emulate a hard disk
 #define NULL ((void*) 0)
 static int fp = NULL;
 
-//#define DEBUG
+#define DEBUG
+
+
 
 /* Buffer_read and write are used as glue functions for code compatibility 
 with hard disk ext2 driver, which has buffer caching functions. Those will
 not be included here.  */
 buffer* buffer_read(struct ext2_fs *f, int block) {
-	buffer* b = malloc(sizeof(buffer));
-	b->block = block;
-	b->data = malloc(f->block_size);
+	buffer* b = get_buffer(f, block);
+	//b->block = block;
 	pread(fp, b->data, f->block_size, block*f->block_size);
 	#ifdef DEBUG
 	printf("Read %d bytes from block %d to buffer %x\n", f->block_size, block, b->data);
@@ -69,6 +70,7 @@ uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 	pwrite(fp, b->data, f->block_size, b->block * f->block_size);
 	// IDE handler should clear the flags
 	b->flags &= ~B_DIRTY;
+	b->flags |= B_VALID;
 	#ifdef DEBUG
 	printf("Wrote %d bytes to block %d\n", f->block_size, b->block);
 	#endif
@@ -77,9 +79,10 @@ uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 /* Overloads for superblock read/write, since it is ALWAYS 1024 bytes in
 from the beginning of the disk, regardless of logical block size */
 buffer* buffer_read_superblock(struct ext2_fs* f) {
-	buffer* b = malloc(sizeof(buffer));
+	//buffer* b = malloc(sizeof(buffer));
+	buffer* b = new_buffer(f);
 	b->block = (f->block_size == 1024) ? 1 : 0;
-	b->data = malloc(f->block_size);
+	//b->data = malloc(f->block_size);
 	pread(fp, b->data, sizeof(superblock), 1024);
 	return b;
 }
@@ -394,6 +397,7 @@ int main(int argc, char* argv[]) {
 
 	if (flags & 0x80) 
 		ls(gfsp, (flags & F_INODE) ? inode_num : 2);
+
 
 	return 0;
 	//ext2_gen_dirent("New_entry", 5, 1);

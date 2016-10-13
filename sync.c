@@ -25,6 +25,13 @@ struct ext2_fs* ext2_mount(int dev) {
 	efs->sb = NULL;
 	efs->bg = NULL;
 
+	struct ide_buffer* list = new_buffer(efs);
+	list->head = &list;
+	list->last = list;
+
+	efs->cache = &list;
+
+	printf("%x\n", *efs->cache);
 	printf("block size: %d\n", efs->block_size);
 	ext2_superblock_read(efs);
 
