@@ -36,11 +36,11 @@ SOFTWARE.
 
 
 /* Increment the link count of an inode */
-void ext2_add_link(struct ext2_fs *f, int inode_num) {
+int ext2_add_link(struct ext2_fs *f, int inode_num) {
 	struct ext2_inode* in = ext2_read_inode(f, inode_num);
 	in->links_count++;
 	ext2_write_inode(f, inode_num, in);
-	return;
+	return in->links_count;
 }
 
 /* Check to see if links == 0. If so, begin the process of file deletion,
@@ -114,7 +114,7 @@ which consists of:
 Currently writes data to a new inode 
 Need to rewrite this function to handle existing inodes, with overwrite behavior
 */
-int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
+size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
 	/* 
 	Things we need to do:
 		* Find the first free inode # and free blocks needed
@@ -225,13 +225,13 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 	return inode_num;
 }
 
-int ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n) {
-	uint32_t inode_num = ext2_alloc_inode();
+size_t ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n) {
+	uint32_t inode_num = ext2_alloc_inode(f);
 	return ext2_write_file(f, inode_num, parent, name, data, mode | EXT2_IFREG, n);
 }
 
 
-void* ext2_read_file(struct ext2_fs *f, struct ext2_inode* in) {
+size_t ext2_read_file(struct ext2_fs *f, struct ext2_inode* in, char* buf) {
 	assert(in);
 	if(!in)
 		return NULL;
@@ -244,7 +244,7 @@ void* ext2_read_file(struct ext2_fs *f, struct ext2_inode* in) {
 
 
 	size_t sz = f->block_size*num_blocks;
-	void* buf = malloc(sz);
+
 	assert(buf != NULL);
 
 	int indirect = 0;
@@ -271,5 +271,5 @@ void* ext2_read_file(struct ext2_fs *f, struct ext2_inode* in) {
 
 		//printf("%x\n", b->data[i]);
 	}
-	return buf;
+	return sz;
 }

@@ -142,9 +142,9 @@ struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_in
 	puts("DEBUG2");
 	in->mode = mode;	
 	in->size = 0;
-	in->atime = time();
-	in->ctime = time();
-	in->mtime = time();
+	in->atime = time(NULL);
+	in->ctime = time(NULL);
+	in->mtime = time(NULL);
 	in->dtime = 0;
 	in->links_count = 1;		/* Setting this to 0 = BIG NO NO */
 
@@ -157,7 +157,7 @@ struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_in
 
 char* gen_file_perm_string(uint16_t x) {
 	char *perm = malloc(10);
-	strcpy(perm, "----------");
+	strcpy(perm, "---------");
 
 	if (x & EXT2_IFDIR) perm[0] = 'd';
 	if (x & EXT2_IRUSR) perm[1] = 'r';		//user read
@@ -199,7 +199,7 @@ void ls(struct ext2_fs *f, int inode_num) {
 			break;
 		
 		struct ext2_inode* di = ext2_read_inode(f, d->inode);
-		char* perm = (gen_file_perm_string(di->mode));
+		char* perm = gen_file_perm_string(di->mode);
 		printf("%5d %s %20s\t%d\n", d->inode, perm, d->name, di->size);
 		free(perm);
 

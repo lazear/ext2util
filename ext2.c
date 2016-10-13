@@ -256,13 +256,18 @@ uint32_t byte_order(uint32_t i) {
 	return x;
 }
 
-void ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num) {
+int ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num) {
+	if (block_num >= (f->block_size / 4))
+		return -1;
 	buffer* b = buffer_read(f, indirect);
 	*(uint32_t*) ((uint32_t) b->data + block_num*4)  = link;
-	buffer_write(f, b);
+	return buffer_write(f, b);
+
 }
 
 uint32_t ext2_read_indirect(struct ext2_fs *f, uint32_t indirect, size_t block_num) {
+	if (block_num >= (f->block_size / 4))
+		return NULL;
 	buffer* b = buffer_read(f, indirect);
 	return *(uint32_t*) ((uint32_t) b->data + block_num*4);
 }
@@ -359,9 +364,6 @@ int main(int argc, char* argv[]) {
 
 	sb_dump(gfsp->sb);
 
-	
-	trav_device_list();
-	
 
 
 	if (flags & 0x1) {			/* Write */
@@ -384,10 +386,18 @@ int main(int argc, char* argv[]) {
 		}
 	} else if (flags & 0x2)	{	/* Read */
 		//ext2_remove_link(inode_num);
-		if (flags & 0x40)
-			puts(ext2_read_file(gfsp, ext2_read_inode(gfsp, pathize(gfsp, file_name))));
-		else
-			puts(ext2_read_file(gfsp, ext2_read_inode(gfsp, inode_num)));
+		if (flags & 0x40) {
+			struct ext2_inode* in = ext2_read_inode(gfsp, pathize(gfsp, file_name));
+			char* buf = malloc(in->size);
+			ext2_read_file(gfsp, in, buf);
+			puts(buf);
+		}
+		else {
+			struct ext2_inode* in = ext2_read_inode(gfsp, inode_num);
+			char* buf = malloc(in->size);
+			ext2_read_file(gfsp, in, buf);
+			puts(buf);
+		}
 	} 
 	if (flags & 0x4) {
 		if (flags & 0x20)

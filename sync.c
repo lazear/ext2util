@@ -4,21 +4,7 @@
 #include <stdio.h>
 
 /* Core virtual filesystem abstraction layer */
-struct filesystem {
-	enum {
-		EXT2,
-	} type;
 
-	union {
-		struct ext2_fs* fs;
-	} data;
-
-	int dev;
-	char mount[255];
-};
-
-#define MAX_DEVICES 0x10
-#define ROOT_NAME	"root"
 
 struct filesystem* device_list = NULL;
 
@@ -88,30 +74,18 @@ void trav_device_list() {
 		return NULL;
 	for (int i = 0; i < MAX_DEVICES; i++)
 		printf("device %d: %s\ttype: %d\tfs: %x\n", i, device_list[i].mount, device_list[i].type, device_list[i].data);
-	char* s = malloc(10);
-	strcpy(s, "/vfs.c");
-	printf("path results: %d\n", pathize(s));
 }
 
 /* Returns inode of file in a path /usr/sbin/file.c would return the inode
 number of file.c, or -1 if any member of the path cannot be found */
-int pathize(const char* path) {
-	printf("path: %s\n", path);
+int pathize(struct ext2_fs* f, char* path) {
+
 	
 	char* pch = strtok(path, "/");
-	struct filesystem* vfs = fs_dev_from_mount(pch);
-	printf("%s %d\n", vfs->mount, vfs->dev);
+
 	int parent = 2;
 	while(pch) {
-		printf("pch %s\n", pch);
-
-		switch(vfs->type) {
-			case EXT2:
-				parent = ext2_find_child(vfs->data, pch, parent);
-				break;
-			default:
-				return -1;
-		}		
+		parent = ext2_find_child(f, pch, parent);
 		//printf("%s inode: %i\n", pch, parent);
 		pch = strtok(NULL, "/");
 	}
