@@ -37,7 +37,7 @@ SOFTWARE.
 
 /* Increment the link count of an inode */
 void ext2_add_link(struct ext2_fs *f, int inode_num) {
-	inode* in = ext2_read_inode(f, inode_num);
+	struct ext2_inode* in = ext2_read_inode(f, inode_num);
 	in->links_count++;
 	ext2_write_inode(f, inode_num, in);
 	return;
@@ -49,7 +49,7 @@ which consists of:
 	* removing inode from root directory
 */
 // void ext2_remove_link(struct ext2_fs *f, int inode_num) {
-// 	inode* in = ext2_read_inode(f, inode_num);
+// 	struct ext2_inode* in = ext2_read_inode(f, inode_num);
 // 	if (--in->links_count) {
 // 		ext2_write_inode(f, inode_num, in);
 // 		return;
@@ -125,8 +125,8 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 		* Update directory structures
 	*/
 
-	superblock* s = f->sb;
-	block_group_descriptor* bg = f->bg;
+	struct ext2_superblock* s 				= f->sb;
+	struct ext2_block_group_descriptor* bg 	= f->bg;
 
 	int sz = n;
 	int indirect = 0;
@@ -137,7 +137,7 @@ int ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name
 	
 	bg += block_group;
 
-	inode* i = ext2_read_inode(f, inode_num);
+	struct ext2_inode* i = ext2_read_inode(f, inode_num);
 
 	/* We use creation time as a marker for existing inode */
 	if (!i->ctime && !i->blocks) {
@@ -231,7 +231,7 @@ int ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int m
 }
 
 
-void* ext2_read_file(struct ext2_fs *f, inode* in) {
+void* ext2_read_file(struct ext2_fs *f, struct ext2_inode* in) {
 	assert(in);
 	if(!in)
 		return NULL;

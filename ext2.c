@@ -80,13 +80,13 @@ buffer* buffer_read_superblock(struct ext2_fs* f) {
 	buffer* b = malloc(sizeof(buffer));
 	b->block = (f->block_size == 1024) ? 1 : 0;
 	b->data = malloc(f->block_size);
-	pread(fp, b->data, sizeof(superblock), 1024);
+	pread(fp, b->data, sizeof(struct ext2_superblock), 1024);
 	return b;
 }
 
 uint32_t buffer_write_superblock(struct ext2_fs *f, buffer* b) {
 	b->flags |= B_DIRTY;	// Dirty
-	pwrite(fp, b->data, sizeof(superblock), 1024);
+	pwrite(fp, b->data, sizeof(struct ext2_superblock), 1024);
 	// IDE handler should clear the flags
 	b->flags &= ~B_DIRTY;
 }
@@ -110,10 +110,10 @@ int ext2_superblock_read(struct ext2_fs *f) {
 	if (!f)
 		return -1;
 	if (!f->sb)
-		f->sb = malloc(sizeof(superblock));
+		f->sb = malloc(sizeof(struct ext2_superblock));
 
 	buffer* b = buffer_read_superblock(f);
-	memcpy(f->sb, b->data, sizeof(superblock));
+	memcpy(f->sb, b->data, sizeof(struct ext2_superblock));
 	buffer_free(b);
 
 	#ifdef DEBUG
@@ -140,7 +140,7 @@ int ext2_superblock_write(struct ext2_fs *f) {
 		printf("Writing to superblock\n");
 		#endif
 		buffer* b = buffer_read_superblock(f);
-		memcpy(b->data, f->sb, sizeof(superblock));
+		memcpy(b->data, f->sb, sizeof(struct ext2_superblock));
 		buffer_write_superblock(f, b);
 		buffer_free(b);
 	}
@@ -151,7 +151,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	if (!f) return -1;
 
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
-	int num_to_read = (num_block_groups * sizeof(block_group_descriptor)) / f->block_size;
+	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / f->block_size;
 	f->num_bg = num_block_groups;
 	num_to_read++;	// round up
 
@@ -160,7 +160,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	#endif
 
 	if (!f->bg) {
-		f->bg = malloc(num_block_groups* sizeof(block_group_descriptor));
+		f->bg = malloc(num_block_groups* sizeof(struct ext2_block_group_descriptor));
 	}
 
 	/* Above a certain block size to disk size ratio, we need more than one block */
@@ -177,7 +177,7 @@ int ext2_blockdesc_write(struct ext2_fs *f) {
 	if (!f) return -1;
 
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
-	int num_to_read = (num_block_groups * sizeof(block_group_descriptor)) / f->block_size;
+	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / f->block_size;
 	/* Above a certain block size to disk size ratio, we need more than one block */
 	num_to_read++;	// round up
 	for (int i = 0; i < num_to_read; i++) {
@@ -209,8 +209,8 @@ int ext2_first_free(uint32_t* b, int sz) {
 Finds a free block from the block descriptor group, and sets it as used
 */
 uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group) {
-	block_group_descriptor* bg = f->bg;
-	superblock* s = f->sb;
+	struct ext2_block_group_descriptor* bg = f->bg;
+	struct ext2_superblock* s = f->sb;
 
 	bg += block_group;
 	// Read the block and inode bitmaps from the block descriptor group
@@ -352,13 +352,15 @@ int main(int argc, char* argv[]) {
 
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
-
+	fs_dev_init();
 
 	gfsp = ext2_mount(1);
 	gfsp->sb->mtime = time(NULL);	// Update mount time
 
 	sb_dump(gfsp->sb);
 
+	
+	trav_device_list();
 	
 
 

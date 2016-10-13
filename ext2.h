@@ -49,7 +49,7 @@ Each block group has a backup superblock as it's first block
 
 
 
-typedef struct superblock_s {
+struct ext2_superblock {
 	uint32_t inodes_count;			// Total # of inodes
 	uint32_t blocks_count;			// Total # of blocks
 	uint32_t r_blocks_count;		// # of reserved blocks for superuser
@@ -75,13 +75,13 @@ typedef struct superblock_s {
 	uint32_t rev_level;
 	uint16_t def_resuid;
 	uint16_t def_resgid;
-} __attribute__((packed)) superblock;
+} __attribute__((packed));
 
 /*
 Inode bitmap size = (inodes_per_group / 8) / BLOCK_SIZE
 block_group = (block_number - 1)/ (blocks_per_group) + 1
 */
-typedef struct block_group_descriptor_s {
+struct ext2_block_group_descriptor {
 	uint32_t block_bitmap;
 	uint32_t inode_bitmap;
 	uint32_t inode_table;
@@ -89,7 +89,7 @@ typedef struct block_group_descriptor_s {
 	uint16_t free_inodes_count;
 	uint16_t used_dirs_count;
 	uint16_t pad[7];
-} block_group_descriptor;
+} __attribute__((packed));
 
 
 /*
@@ -103,7 +103,7 @@ local inode index = (inode - 1) % s_inodes_per_group
 
 containing block = (index * INODE_SIZE) / BLOCK_SIZE
 */
-typedef struct inode_s {
+struct ext2_inode {
 	uint16_t mode;			// Format of the file, and access rights
 	uint16_t uid;			// User id associated with file
 	uint32_t size;			// Size of file in bytes
@@ -122,9 +122,9 @@ typedef struct inode_s {
 	uint32_t dir_acl;
 	uint32_t faddr;			// Location of file fragment
 	uint32_t osd2[3];
-} inode;
+} __attribute__((packed));
 
-#define INODE_SIZE (sizeof(inode))
+#define INODE_SIZE (sizeof(struct ext2_inode))
 
 #define EXT2_IFSOCK		0xC000		//socket
 #define EXT2_IFLNK		0xA000		//symbolic link
@@ -162,13 +162,13 @@ typedef struct inode_s {
 /*
 Directories must be 4byte aligned, and cannot extend between multiple
 blocks on the disk */
-typedef struct dirent_s {
+struct ext2_dirent {
 	uint32_t inode;			// Inode
 	uint16_t rec_len;		// Total size of entry, including all fields
 	uint8_t name_len;		// Name length, least significant 8 bits
 	uint8_t file_type;		// Type indicator
 	uint8_t name[];
-} __attribute__((packed)) dirent;
+} __attribute__((packed));
 
 /* IMPORTANT: Inode addresses start at 1 */
 
@@ -184,8 +184,8 @@ struct ext2_fs {
 	int block_size;
 	int num_bg;
 	int mutex;
-	superblock* sb;
-	block_group_descriptor* bg;
+	struct ext2_superblock* sb;
+	struct ext2_block_group_descriptor* bg;
 };
 
 struct ext2_fs* gfsp;

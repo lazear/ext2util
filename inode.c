@@ -31,10 +31,10 @@ SOFTWARE.
 #include <assert.h>
 
 
-inode* ext2_read_inode(struct ext2_fs *f, int i) {
+struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i) {
 	acquire_fs(f);
-	superblock* s = f->sb;
-	block_group_descriptor* bgd = f->bg;
+	struct ext2_superblock* s = f->sb;
+	struct ext2_block_group_descriptor* bgd = f->bg;
 
 	int block_group = (i - 1) / s->inodes_per_group; // block group #
 	int index 		= (i - 1) % s->inodes_per_group; // index into block group
@@ -43,17 +43,17 @@ inode* ext2_read_inode(struct ext2_fs *f, int i) {
 	bgd += block_group;
 	// Not using the inode table was the issue...
 	buffer* b = buffer_read(f, bgd->inode_table+block);
-	inode* in = malloc(sizeof(inode));
+	struct ext2_inode* in = malloc(INODE_SIZE);
 	/* Switched to memcpy. This may avoid issues for OS level buffer caching. */
-	memcpy(in, ((uint32_t) b->data + (index % (f->block_size/INODE_SIZE))*INODE_SIZE), sizeof(inode));
+	memcpy(in, ((uint32_t) b->data + (index % (f->block_size/INODE_SIZE))*INODE_SIZE), INODE_SIZE);
 	release_fs(f);
 	return in;
 }
 
-void ext2_write_inode(struct ext2_fs *f, int inode_num, inode* i) {
+void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i) {
 	acquire_fs(f);
-	superblock* s = f->sb;
-	block_group_descriptor* bgd = f->bg;
+	struct ext2_superblock* s = f->sb;
+	struct ext2_block_group_descriptor* bgd = f->bg;
 
 
 	int block_group = (inode_num - 1) / s->inodes_per_group; // block group #
@@ -78,7 +78,7 @@ Finds a free inode from the block descriptor group, and sets it as used
 uint32_t ext2_alloc_inode(struct ext2_fs *f) {
 	// Read the block and inode bitmaps from the block descriptor group
 
-	block_group_descriptor* bg = f->bg;
+	struct ext2_block_group_descriptor* bg = f->bg;
 	buffer* bitmap_buf;
 	uint32_t* bitmap = malloc(f->block_size);
 	uint32_t num = 0;
@@ -106,7 +106,7 @@ uint32_t ext2_alloc_inode(struct ext2_fs *f) {
 
 
 uint32_t ext2_free_inode(struct ext2_fs *f, int i_no) {
-	block_group_descriptor* bg = f->bg;
+	struct ext2_block_group_descriptor* bg = f->bg;
 
 	// Read the block and inode bitmaps from the block descriptor group
 	buffer* bitmap_buf = buffer_read(f, bg->inode_bitmap);

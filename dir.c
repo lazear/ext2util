@@ -28,35 +28,24 @@ SOFTWARE.
 #include <stdint.h>
 #include <assert.h>
 
-/* Returns inode of file in a path /usr/sbin/file.c would return the inode
-number of file.c, or -1 if any member of the path cannot be found */
-int pathize(struct ext2_fs *f, char* path) {
-	char* pch = strtok(path, "/");
-	int parent = 2;
-	while(pch) {
-		parent = ext2_find_child(f, pch, parent);
-		//printf("%s inode: %i\n", pch, parent);
-		pch = strtok(NULL, "/");
-	}
-	return parent;
-}
+
 
 /* Add an inode into parent_inode */
 int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, int type) {
 
-	inode* rootdir = ext2_read_inode(f, parent_inode);
+	struct ext2_inode* rootdir = ext2_read_inode(f, parent_inode);
 	assert(rootdir->blocks);
 	assert(rootdir->block[0]);
 
 	buffer* rootdir_buf = buffer_read(f, rootdir->block[0]);
-	dirent* d = (dirent*) rootdir_buf->data;
+	struct ext2_dirent* d = (struct ext2_dirent*) rootdir_buf->data;
 
 	int sum = 0;
 	int calc = 0;
-	int new_entry_len = (sizeof(dirent) + strlen(name) + 4) & ~0x3;
+	int new_entry_len = (sizeof(struct ext2_dirent) + strlen(name) + 4) & ~0x3;
 	do {
 		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
+		calc = (sizeof(struct ext2_dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
 
 		/* Child already exists here */
@@ -77,11 +66,11 @@ int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, in
 				return NULL;
 			}
 			d->rec_len = calc; 		// Resize this entry to it's real size
-			d = (dirent*)((uint32_t) d + d->rec_len);
+			d = (struct ext2_dirent*)((uint32_t) d + d->rec_len);
 			break;
 		}
 		//printf("name %s\n",d->name);
-		d = (dirent*)((uint32_t) d + d->rec_len);
+		d = (struct ext2_dirent*)((uint32_t) d + d->rec_len);
 
 		if (d->rec_len == 0)
 			break;
@@ -106,7 +95,7 @@ int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, in
 int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 	if (!dir_inode)
 		return -1;
-	inode* i = ext2_read_inode(f, dir_inode);			// Root directory
+	struct ext2_inode* i = ext2_read_inode(f, dir_inode);			// Root directory
 	int num_blocks = i->blocks / (f->block_size / SECTOR_SIZE);
 	char* buf = malloc(f->block_size*num_blocks);
 	memset(buf, 0, f->block_size*num_blocks);
@@ -116,13 +105,13 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 		memcpy((uint32_t)buf+(q * f->block_size), b->data, f->block_size);
 	}
 
-	dirent* d = (dirent*) buf;
+	struct ext2_dirent* d = (struct ext2_dirent*) buf;
 	
 	int sum = 0;
 	int calc = 0;
 	do {
 		// Calculate the 4byte aligned size of each entry
-		calc = (sizeof(dirent) + d->name_len + 4) & ~0x3;
+		calc = (sizeof(struct ext2_dirent) + d->name_len + 4) & ~0x3;
 		sum += d->rec_len;
 		//printf("%2d  %10s\t%2d %3d\n", (int)d->inode, d->name, d->name_len, d->rec_len);
 		if (strncmp(d->name, name, d->name_len)== 0) {
@@ -130,7 +119,7 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 			free(buf);
 			return d->inode;
 		}
-		d = (dirent*)((uint32_t) d + d->rec_len);
+		d = (struct ext2_dirent*)((uint32_t) d + d->rec_len);
 
 	} while(sum < (1024 * num_blocks));
 	free(buf);
@@ -141,12 +130,12 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 /* Create a new directory
 Need to handle cases where this entry causes an overflow of the parent directory,
 i.e. force allocation of a new block */
-dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_inode) {
+struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_inode) {
 	int mode = EXT2_IFDIR | EXT2_IRUSR | EXT2_IWUSR | EXT2_IXUSR;
 	int i_no = ext2_alloc_inode(f);
 	//int block_group = (i_no - 1) / s->inodes_per_group; // block group #
 
-	inode* in = malloc(sizeof(inode)); 
+	struct ext2_inode* in = malloc(INODE_SIZE); 
 	in->blocks = 2;
 	puts("DEBUG1");
 	in->block[0] = ext2_alloc_block(f, 1);
@@ -184,7 +173,7 @@ char* gen_file_perm_string(uint16_t x) {
 }
 
 void ls(struct ext2_fs *f, int inode_num) {
-	inode* i = ext2_read_inode(f, inode_num);			// Root directory
+	struct ext2_inode* i = ext2_read_inode(f, inode_num);			// Root directory
 	int num_blocks = i->blocks / (f->block_size / SECTOR_SIZE);
 	int sz = f->block_size*num_blocks;
 	char* buf = malloc(sz);
@@ -197,7 +186,7 @@ void ls(struct ext2_fs *f, int inode_num) {
 		buffer_free(b);
 	}
 
-	dirent* d = (dirent*) buf;
+	struct ext2_dirent* d = (struct ext2_dirent*) buf;
 	
 	int sum = 0;
 	int calc = 0;
@@ -209,12 +198,12 @@ void ls(struct ext2_fs *f, int inode_num) {
 		if (d->rec_len == 0)
 			break;
 		
-		inode* di = ext2_read_inode(f, d->inode);
+		struct ext2_inode* di = ext2_read_inode(f, d->inode);
 		char* perm = (gen_file_perm_string(di->mode));
 		printf("%5d %s %20s\t%d\n", d->inode, perm, d->name, di->size);
 		free(perm);
 
-		d = (dirent*)((char*)d + d->rec_len);
+		d = (struct ext2_dirent*)((char*)d + d->rec_len);
 	} while(sum < (f->block_size * num_blocks));
 
 	free(buf);

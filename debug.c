@@ -46,7 +46,7 @@ void bg_dump(struct ext2_fs* f) {
 
 
 
-void inode_dump(struct ext2_fs* f, inode* in) {
+void inode_dump(struct ext2_fs* f, struct ext2_inode* in) {
 
 	printf("Mode\t%x\t", in->mode);			// Format of the file, and access rights
 	printf("UID\t%x\t", in->uid);			// User id associated with file
@@ -72,7 +72,7 @@ void inode_dump(struct ext2_fs* f, inode* in) {
 }
 
 // For debugging purposes
-void sb_dump(struct superblock_s* sb) {
+void sb_dump(struct ext2_superblock* sb) {
 	printf("Superblock informaton:\n");
 	printf("EXT2 Magic\t%x\n", sb->magic);
 	printf("Inodes Count\t%d\t", sb->inodes_count);
