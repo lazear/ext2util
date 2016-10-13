@@ -16,7 +16,8 @@ struct ide_buffer* new_buffer(struct ext2_fs* f) {
 }
 
 void push(struct ext2_fs* f, struct ide_buffer* n) {
-		struct ide_buffer** head = f->cache;
+	printf("push %x onto %x\n", n, *f->cache);
+	struct ide_buffer** head = f->cache;
 	n->prev = (*head)->last;	/* old end-of-list is previous item */
 
 	(*head)->last->next = n;	/* old end-of-list's next item is n */
@@ -38,27 +39,36 @@ struct ide_buffer* get_buffer(struct ext2_fs* f, int block) {
 	struct ide_buffer** b;
 	printf("request buffer for block %d\n", block);
 
-	for (b = f->cache; *b; b = &(*b)->next) {
-		printf("buffer %x\n", *b);
-	//	printf("traverse: %x, flags %x block %d p %x n %x h %x l %x\n", \
-			*b, (*b)->flags, (*b)->block, (*b)->prev, (*b)->next, *(*b)->head, (*b)->last);
-			if ((*b)->block == block) {
-				printf("match");
-				if (((*b)->flags & (B_BUSY | B_DIRTY)) == 0) {
-					printf("found match that is not dirty or in use\n");
-					(*b)->flags |= B_BUSY;
-					return *b;
-			}
-		}
-	}
+	// for (b = f->cache; *b; b = &(*b)->next) {
+	// 	printf("buffer %x\n", *b);
+	// //	printf("traverse: %x, flags %x block %d p %x n %x h %x l %x\n", \
+	// 		*b, (*b)->flags, (*b)->block, (*b)->prev, (*b)->next, *(*b)->head, (*b)->last);
+	// 		if ((*b)->block == block) {
+	// 			printf("match");
+	// 			if (((*b)->flags & (B_BUSY | B_DIRTY)) == 0) {
+	// 				printf("found match that is not dirty or in use\n");
+	// 				(*b)->flags |= B_BUSY;
+	// 				return *b;
+	// 		}
+	// 	}
+	// }
 
 	/* If we're gotten here, there are no free blocks matching */
-	printf("Making new buffer\n");
+
 	struct ide_buffer* new = new_buffer(f);
 	new->block = block;
+		printf("Making new buffer %x\n", new);
 	push(f, new);
-	printf("push onto cache\n");
+	trav(f);
 	return new;
+}
+
+void trav(struct ext2_fs* f) {
+	struct ide_buffer** b;
+	for (b = f->cache; *b; b = &(*b)->next) {
+		printf("traverse: %x, flags %x block %d p %x n %x h %x l %x\n", \
+			*b, (*b)->flags, (*b)->block, (*b)->prev, (*b)->next, *(*b)->head, (*b)->last);
+	}
 }
 
 void buffer_remove(struct ide_buffer** head, struct ide_buffer* n) {

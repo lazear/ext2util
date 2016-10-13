@@ -171,7 +171,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
 		buffer* b = buffer_read(f, n);
 		memcpy((uint32_t) f->bg + (i*f->block_size), b->data, f->block_size);
-		buffer_free(b);
+		//buffer_free(b);
 	}
 	return 0;
 }
@@ -359,10 +359,9 @@ int main(int argc, char* argv[]) {
 
 	gfsp = ext2_mount(1);
 	gfsp->sb->mtime = time(NULL);	// Update mount time
+	//sb_dump(gfsp->sb);
 
-	sb_dump(gfsp->sb);
-
-	
+	printf("HEREEEE\n");
 
 
 	if (flags & 0x1) {			/* Write */
