@@ -11,7 +11,6 @@ struct ide_buffer* new_buffer(struct ext2_fs* f) {
 	p->flags = 0;
 	p->block = NULL;
 	p->data = malloc(f->block_size);
-
 	return p;
 }
 
@@ -57,16 +56,16 @@ struct ide_buffer* get_buffer(struct ext2_fs* f, int block) {
 
 	struct ide_buffer* new = new_buffer(f);
 	new->block = block;
-		printf("Making new buffer %x\n", new);
 	push(f, new);
-	trav(f);
+	//trav(f);
 	return new;
 }
 
 void trav(struct ext2_fs* f) {
 	struct ide_buffer** b;
+	printf("trav %x\n", *f->cache);
 	for (b = f->cache; *b; b = &(*b)->next) {
-		printf("traverse: %x, flags %x block %d p %x n %x h %x l %x\n", \
+		printf("traverse: %x, flags %x block %d p %8x n %8x h %8x l %8x\n", \
 			*b, (*b)->flags, (*b)->block, (*b)->prev, (*b)->next, *(*b)->head, (*b)->last);
 	}
 }
@@ -98,26 +97,27 @@ void destroy_buffer_list(struct ide_buffer** head) {
 			free((*b)->data);
 			free((*b));
 	}
-	free((*head)->data);
-	free((*head));
+	//free((*head)->data);
+	//free((*head));
 }
 
 
 void buffer_init() {
 	struct ext2_fs f;
+	f.block_size = 1024;
 
 	struct ide_buffer* list = new_buffer(&f);
 	list->head = &list;
 	list->last = list;
-
+	f.cache = &list;
 	for (int i = 0; i < 9; i++) {	
-		buffer* b = new_buffer(&f);
-		b->block = i;
-		b->flags = 0;
-		push(&list, b);
+		// buffer* b = new_buffer(&f);
+		// b->block = i;
+		// push(&f, b);
+		get_buffer(&f, i);
 	}
 
-	get_buffer(&f, 7);
+	trav(&f);
 
 	destroy_buffer_list(&list);
 

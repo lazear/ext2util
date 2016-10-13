@@ -30,18 +30,20 @@ struct ext2_fs* ext2_mount(int dev) {
 	list->last = list;
 
 	efs->cache = &list;
-	push(efs, new_buffer(efs));
+	//push(efs, new_buffer(efs));
 
-	trav(efs);
+	//trav(efs);
 
 	printf("%x\n", *efs->cache);
 	printf("block size: %d\n", efs->block_size);
 	printf("struct %x\n", efs);
+
 	ext2_superblock_read(efs);
 
 	ext2_blockdesc_read(efs);
 
 	bg_dump(efs);
+
 	printf("EXITING MOUNT\n");
 	return efs;
 }

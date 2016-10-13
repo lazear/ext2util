@@ -55,10 +55,11 @@ not be included here.  */
 buffer* buffer_read(struct ext2_fs *f, int block) {
 	buffer* b = get_buffer(f, block);
 	//b->block = block;
-	pread(fp, b->data, f->block_size, block*f->block_size);
-	#ifdef DEBUG
+		#ifdef DEBUG
 	printf("Read %d bytes from block %d to buffer %x\n", f->block_size, block, b->data);
 	#endif
+	pread(fp, b->data, f->block_size, block*f->block_size);
+
 	return b;
 }
 
@@ -79,9 +80,8 @@ uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 /* Overloads for superblock read/write, since it is ALWAYS 1024 bytes in
 from the beginning of the disk, regardless of logical block size */
 buffer* buffer_read_superblock(struct ext2_fs* f) {
-	//buffer* b = malloc(sizeof(buffer));
-	buffer* b = new_buffer(f);
-	b->block = (f->block_size == 1024) ? 1 : 0;
+	int block = (f->block_size == 1024) ? 1 : 0;
+	buffer* b = get_buffer(f, block);
 	//b->data = malloc(f->block_size);
 	pread(fp, b->data, sizeof(superblock), 1024);
 	return b;
@@ -353,15 +353,21 @@ int main(int argc, char* argv[]) {
 		return;
 	}
 
+
+	// buffer_init();
+	// return;
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
 
 
 	gfsp = ext2_mount(1);
-	gfsp->sb->mtime = time(NULL);	// Update mount time
-	//sb_dump(gfsp->sb);
+	printf("HEREEEE %x \t %x %x\n", gfsp, *gfsp->cache, gfsp->sb);
+	//gfsp->sb->mtime = time(NULL);	// Update mount time
+	sb_dump(gfsp->sb);
+trav(gfsp);
+	printf("HEREEEE %x \t %x %x\n", gfsp, *gfsp->cache, gfsp->sb);
 
-	printf("HEREEEE\n");
+	
 
 
 	if (flags & 0x1) {			/* Write */
@@ -399,6 +405,5 @@ int main(int argc, char* argv[]) {
 
 
 	return 0;
-	//ext2_gen_dirent("New_entry", 5, 1);
 
 }
