@@ -33,11 +33,14 @@ Each block group has a backup superblock as it's first block
 */
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <time.h>
 
 #ifndef __baremetal_ext2__
 #define __baremetal_ext2__
 
-#define NULL			((void*) 0)
 
 #define SECTOR_SIZE		512
 #define EXT2_BOOT		0			// Block 0 is bootblock
@@ -194,13 +197,71 @@ struct ext2_fs* gfsp;
 #define B_VALID	0x2		// buffer has been read from disk
 #define B_DIRTY	0x4		// buffer has been written to
 
+/* Function definitions */
 
-#define B_BUSY	0x1		// buffer is locked by a process
-#define B_VALID	0x2		// buffer has been read from disk
-#define B_DIRTY	0x4		// buffer has been written to
+/* Replace when on real hardware */
+buffer* buffer_read(struct ext2_fs *f, int block);
+uint32_t buffer_write(struct ext2_fs *f, buffer* b);
+buffer* buffer_read_superblock(struct ext2_fs* f);
+uint32_t buffer_write_superblock(struct ext2_fs *f, buffer* b);
+int buffer_free(buffer* b);
 
+/* ext2.c */
+int ext2_superblock_read(struct ext2_fs *f);
+int ext2_superblock_write(struct ext2_fs *f);
+int ext2_blockdesc_read(struct ext2_fs *f);
+int ext2_blockdesc_write(struct ext2_fs *f);
+int ext2_first_free(uint32_t* b, int sz);
+uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group);
+int ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num);
+uint32_t ext2_read_indirect(struct ext2_fs *f, uint32_t indirect, size_t block_num);
 
+/* file.c */
+int ext2_add_link(struct ext2_fs *f, int inode_num);
+size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n);
+size_t ext2_read_file(struct ext2_fs *f, struct ext2_inode* in, char* buf);
+size_t ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n);
 
+/* dir.c */
+int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, int type);
+int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode);
+struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_inode);
 
+char* gen_file_perm_string(uint16_t x);
+void ls(struct ext2_fs *f, int inode_num);
+
+/* inode.c */
+struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i);
+void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i);
+uint32_t ext2_alloc_inode(struct ext2_fs *f);
+uint32_t ext2_free_inode(struct ext2_fs *f, int i_no);
+
+/* sync.c */
+void trav_device_list();
+struct filesystem* fs_dev_from_mount(char* mount);
+void fs_dev_init();
+int fs_dev_register(int dev, struct filesystem* f) ;
+struct ext2_fs* ext2_mount(int dev);
+void sync(struct ext2_fs *f);
+void release_fs(struct ext2_fs *f);
+void acquire_fs(struct ext2_fs *f);
+int pathize(struct ext2_fs* f, char* path);
+/* Core virtual filesystem abstraction layer */
+
+#define MAX_DEVICES 0x10
+#define ROOT_NAME	"root"
+
+struct filesystem {
+	enum {
+		EXT2,
+	} type;
+
+	union {
+		struct ext2_fs* fs;
+	} data;
+
+	int dev;
+	char mount[255];
+};
 
 #endif
