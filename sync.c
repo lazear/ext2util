@@ -37,7 +37,6 @@ struct ext2_fs* ext2_mount(int dev) {
 	vfs.dev = dev;
 
 	fs_dev_register(dev, &vfs);
-	printf("efs: %x block size: %d\n", efs, efs->block_size);
 	ext2_superblock_read(efs);
 
 	ext2_blockdesc_read(efs);

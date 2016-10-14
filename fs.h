@@ -70,4 +70,4 @@ struct file_system_type {
 	const char* name;
 	int requires_dev;
 	struct file_system_type* next;		/* If registering more than one */
-}
+};
