@@ -183,6 +183,32 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	return 0;
 }
 
+struct ext2_block_group_descriptor* ext2_blockdesc_read_new
+	(struct super_block* sb) {
+	if (!sb) return NULL;
+
+	struct ext2_superblock* es = &sb->u.ext2_sb;
+
+	int num_block_groups = (es->blocks_count / es->blocks_per_group);
+	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / sb->s_blocksize;
+	num_to_read++;	// round up
+
+	#ifdef DEBUG
+	printf("Number of block groups: %d (%d blocks)\n", f->num_bg, num_to_read);
+	#endif
+
+	struct ext2_block_group_descriptor* bg = malloc(num_block_groups* sizeof(struct ext2_block_group_descriptor));
+
+	/* Above a certain block size to disk size ratio, we need more than one block */
+	for (int i = 0; i < num_to_read; i++) {
+		int n = EXT2_SUPER + i + ((sb->s_blocksize == 1024) ? 1 : 0); 	
+		buffer* b = buffer_read2(sb->s_dev, n, sb->s_blocksize);
+		memcpy((void*) (bg + (i*sb->s_blocksize)), b->data, sb->s_blocksize);
+		buffer_free(b);
+	}
+	return bg;
+}
+
 int ext2_blockdesc_write(struct ext2_fs *f) {
 	if (!f) return -1;
 

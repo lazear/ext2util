@@ -33,13 +33,13 @@ struct super_block {
 
 	union {
 		/* Store the on-disk data structures */
-		struct ext2_superblock* ext2_sb;
+		struct ext2_superblock ext2_sb;
 		/* Add other filesystem implementations... */
 	}u;
 };
 
 struct inode {
-	uint16_t i_dev;
+	kdev_t i_dev;
 	uint32_t i_ino;
 	uint16_t i_nlinks;	// How many links
 	uint16_t i_mode;	// Format of the file, and access rights
@@ -55,7 +55,7 @@ struct inode {
 	struct super_block* i_sb;
 	union {
 		/* Store the on-disk data structures */
-		struct ext2_inode* ext2_i;
+		struct ext2_inode ext2_i;
 		/* Add other filesystem implementations... */
 	} u;
 

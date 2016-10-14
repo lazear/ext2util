@@ -71,6 +71,30 @@ void inode_dump(struct ext2_fs* f, struct ext2_inode* in) {
 
 }
 
+void inode_dump2(struct inode* inode) {
+
+	struct ext2_inode* in = &inode->u.ext2_i;
+	printf("Mode\t%x\t", in->mode);			// Format of the file, and access rights
+	printf("UID\t%x\t", in->uid);			// User id associated with file
+	printf("Size\t%d\n", in->size);			// Size of file in bytes
+	printf("Atime\t%x\t", in->atime);			// Last access time, POSIX
+	printf("Ctime\t%x\t", in->ctime);			// Creation time
+	printf("Mtime\t%x\n", in->mtime);			// Last modified time
+	printf("Dtime\t%x\t", in->dtime);			// Deletion time
+	printf("Group\t%x\t", in->gid);			// POSIX group access
+	printf("#Links\t%d\n", in->links_count);	// How many links
+	printf("Sector\t%d\t", in->blocks);		// # of 512-bytes blocks reserved to contain the data
+	printf("Flags\t%x\n", in->flags);			// EXT2 behavior
+	printf("Blocks:\n");
+	for (int i =0; i < in->blocks/(inode->i_sb->s_blocksize / SECTOR_SIZE); i++)
+		if (i <= 12)
+			printf("%d ", in->block[i]);	
+
+	printf("\n");
+
+}
+
+
 // For debugging purposes
 void sb_dump(struct ext2_superblock* sb) {
 	printf("Superblock informaton:\n");

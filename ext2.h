@@ -37,6 +37,9 @@ Each block group has a backup superblock as it's first block
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#ifndef __vfs__
+#include "fs.h"
+#endif
 
 #ifndef __baremetal_ext2__
 #define __baremetal_ext2__
@@ -231,6 +234,7 @@ extern char* gen_file_perm_string(uint16_t x);
 extern void ls(struct ext2_fs *f, int inode_num);
 
 /* inode.c */
+//extern int ext2_read_inode_new(struct inode* inode);
 extern struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i);
 extern void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i);
 extern uint32_t ext2_alloc_inode(struct ext2_fs *f);

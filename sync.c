@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 struct super_block* ext2_read_super(struct super_block*, void*, int);
-
+extern int ext2_read_inode_new(struct inode* inode);
 struct file_system_type ext2_fs_type = {
 	.read_super = ext2_read_super,
 	.name = "ext2",
@@ -16,7 +16,7 @@ struct file_system_type ext2_fs_type = {
 
 struct super_operations ext2_super_operations = {
 	.alloc_inode = NULL,
-	.read_inode = NULL,
+	.read_inode = ext2_read_inode_new,
 	.write_inode = NULL,
 	.sync_fs = NULL,
 	.write_super = NULL,
@@ -38,15 +38,10 @@ struct file_operations ext2_default_file_operations = {
 	.write = NULL,
 };
 
+void acquire_fs(struct ext2_fs *f) {}
 
+void release_fs(struct ext2_fs *f) {}
 
-void acquire_fs(struct ext2_fs *f) {
-
-}
-
-void release_fs(struct ext2_fs *f) {
-
-}
 
 void sync(struct ext2_fs *f) {
 	f->sb->wtime = time(NULL);
@@ -89,10 +84,10 @@ struct super_block* ext2_read_super(struct super_block* sb, void* data, int sile
 	sb->s_blocksize = (1024 << es->log_block_size);
 	sb->s_access = 0x3;
 	sb->s_ops = &ext2_super_operations;
-	sb->u.ext2_sb = es;
-
+	memcpy((void*) &sb->u.ext2_sb, es, sizeof(struct ext2_superblock));
+	sb->s_mounted = get_inode(sb, EXT2_ROOTDIR);
 	/* load root inode */
-
+	inode_dump2(sb->s_mounted);
 	return sb;
 }
 
@@ -120,6 +115,13 @@ struct ext2_fs* ext2_mount(int dev) {
 	ext2_blockdesc_read(efs);
 
 	bg_dump(efs);
+
+
+	struct super_block* sb = malloc(sizeof(struct super_block));
+	ext2_read_super(sb, NULL, 0);
+
+	printf("DUMPING EXT2 SUPERBLOCK\n");
+	sb_dump(&sb->u.ext2_sb);
 
 	return efs;
 }

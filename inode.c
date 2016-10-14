@@ -25,10 +25,32 @@ SOFTWARE.
 */
 
 /* Deal with inode creation and modification */
-
+#include "fs.h"
 #include "ext2.h"
+
 #include <stdint.h>
 #include <assert.h>
+
+
+int ext2_read_inode_new(struct inode* inode) {
+
+	struct super_block* sb = inode->i_sb;
+	struct ext2_superblock s = sb->u.ext2_sb;
+	struct ext2_block_group_descriptor* bgd = ext2_blockdesc_read_new(sb);
+
+	int block_group = (inode->i_ino - 1) / s.inodes_per_group; // block group #
+	int index 		= (inode->i_ino - 1) % s.inodes_per_group; // index into block group
+	int block 		= (index * sizeof(struct ext2_inode)) / sb->s_blocksize;
+
+	bgd += block_group;
+	// Not using the inode table was the issue...
+	buffer* b = buffer_read2(sb->s_dev, bgd->inode_table+block, sb->s_blocksize);
+	struct ext2_inode* in = (struct ext2_inode*)((uint32_t) b->data + (index % (sb->s_blocksize/INODE_SIZE))*INODE_SIZE);
+
+	memcpy((void*)&inode->u.ext2_i, in, sizeof(struct ext2_inode));
+
+	return 1;
+}
 
 
 struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i) {
