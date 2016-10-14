@@ -26,19 +26,36 @@ void ext2_global_test(struct inode* inode) {
 
 /* ext2_read_super
 	struct super_block* sb -- vfs super block structure
-	void* data -- pre-allocated destination
+	void* data -- mount options? ignore for now
 	int silent -- do we output or not?
 */
 
-struct super_block* ext2_read_super(struct super_block* sb, void* data, 
-	int silent) {
+struct super_block* ext2_read_super(struct super_block* sb, void* data, int silent) {
 
-	struct ext2_super_block * es;
+	/* 
+	1. Read superblock from disk
+	2. Read root inode from disk
+	*/
+
+	struct ext2_superblock * es;
 	struct ide_buffer* b;
 	kdev_t dev = sb->s_dev;
 	int block = 1;
 
+	b = buffer_read2(dev, EXT2_SUPER, 1024);
+	es = (struct ext2_superblock*) b->data;
 
+	if (es->magic != EXT2_MAGIC) {
+		if (!silent)
+			printf("EXT2: invalid superblock on disk\n");
+		buffer_free(b);
+		return NULL;
+	}
+	sb->s_blocksize = (1024 << es->log_block_size);
+	sb->u.ext2_sb = es;
+
+
+	return sb;
 }
 
 struct file_system_type ext2_fs_type = {

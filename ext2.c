@@ -61,6 +61,16 @@ buffer* buffer_read(struct ext2_fs *f, int block) {
 	return b;
 }
 
+buffer* buffer_read2(kdev_t dev, int block, int size) {
+	buffer* b = malloc(sizeof(buffer));
+
+	b->block = block;
+	b->data = malloc(size);
+	pread(fp, b->data, size, block*size);
+
+	return b;
+}
+
 /* Free the buffer block, since we're not caching */
 uint32_t buffer_write(struct ext2_fs *f, buffer* b) {
 	assert(b->block);
