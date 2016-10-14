@@ -357,7 +357,6 @@ int main(int argc, char* argv[]) {
 
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
-	fs_dev_init();
 
 	gfsp = ext2_mount(1);
 	gfsp->sb->mtime = time(NULL);	// Update mount time
