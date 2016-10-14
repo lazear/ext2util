@@ -182,6 +182,8 @@ typedef struct ide_buffer {
 	uint32_t block;				// block number
 	int flags;
 	uint8_t* data;	// 1 disk sector of data
+	uint32_t size;
+	uint16_t dev;
 } buffer;
 
 
@@ -250,22 +252,62 @@ extern void sync(struct ext2_fs *f);
 extern void release_fs(struct ext2_fs *f);
 extern void acquire_fs(struct ext2_fs *f);
 extern int pathize(struct ext2_fs* f, char* path);
-/* Core virtual filesystem abstraction layer */
 
-#define MAX_DEVICES 0x10
-#define ROOT_NAME	"root"
-
-struct filesystem {
-	enum {
-		EXT2,
-	} type;
-
-	union {
-		struct ext2_fs* fs;
-	} data;
-
-	int dev;
-	char mount[255];
-};
 
 #endif
+
+struct ext2_sb_info {
+	uint32_t s_inodes_count;			// Total # of inodes
+	uint32_t s_blocks_count;			// Total # of blocks
+	uint32_t s_blocks_per_group;
+	uint32_t s_frags_per_group;
+	uint32_t s_inodes_per_group;
+	uint32_t s_desc_per_block;
+	uint32_t s_groups_count;
+
+	struct ext2_superblock *s_es;
+	struct ide_buffer* s_sb_buffer;		/* Save locked buffers */
+	struct ide_buffer** s_gd_buffer;
+};
+
+// in mem, as of kernel 4.8
+ //69 struct ext2_sb_info {
+ // 70         unsigned long s_frag_size;      /* Size of a fragment in bytes */
+ // 71         unsigned long s_frags_per_block;/* Number of fragments per block */
+ // 72         unsigned long s_inodes_per_block;/* Number of inodes per block */
+ // 73         unsigned long s_frags_per_group;/* Number of fragments in a group */
+ // 74         unsigned long s_blocks_per_group;/* Number of blocks in a group */
+ // 75         unsigned long s_inodes_per_group;/* Number of inodes in a group */
+ // 76         unsigned long s_itb_per_group;  /* Number of inode table blocks per group */
+ // 77         unsigned long s_gdb_count;      /* Number of group descriptor blocks */
+ // 78         unsigned long s_desc_per_block; /* Number of group descriptors per block */
+ // 79         unsigned long s_groups_count;   /* Number of groups in the fs */
+ // 80         unsigned long s_overhead_last;  /* Last calculated overhead */
+ // 81         unsigned long s_blocks_last;    /* Last seen block count */
+ // 82         struct buffer_head * s_sbh;     Buffer containing the super block */
+ // 83         struct ext2_super_block * s_es; Pointer to the super block in the buffer */
+//  84         struct buffer_head ** s_group_desc;
+//  85         unsigned long  s_mount_opt;
+//  86         unsigned long s_sb_block;
+//  87         kuid_t s_resuid;
+//  88         kgid_t s_resgid;
+//  89         unsigned short s_mount_state;
+//  90         unsigned short s_pad;
+//  91         int s_addr_per_block_bits;
+//  92         int s_desc_per_block_bits;
+//  93         int s_inode_size;
+//  94         int s_first_ino;
+//  95         spinlock_t s_next_gen_lock;
+//  96         u32 s_next_generation;
+//  97         unsigned long s_dir_count;
+//  98         u8 *s_debts;
+//  99         struct percpu_counter s_freeblocks_counter;
+// 100         struct percpu_counter s_freeinodes_counter;
+// 101         struct percpu_counter s_dirs_counter;
+// 102         struct blockgroup_lock *s_blockgroup_lock;
+// 104         spinlock_t s_rsv_window_lock;
+// 105         struct rb_root s_rsv_window_root;
+// 106         struct ext2_reserve_window_node s_rsv_window_head;
+
+// 115         spinlock_t s_lock;
+// 116        

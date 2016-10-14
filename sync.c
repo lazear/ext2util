@@ -5,7 +5,11 @@
 #include <stdio.h>
 
 struct super_block* ext2_read_super(struct super_block*, void*, int);
-extern int ext2_read_inode_new(struct inode* inode);
+
+extern void ext2_read_inode_new(struct inode* inode);
+extern void ext2_write_inode_new(struct inode* inode);
+
+
 struct file_system_type ext2_fs_type = {
 	.read_super = ext2_read_super,
 	.name = "ext2",
@@ -17,7 +21,7 @@ struct file_system_type ext2_fs_type = {
 struct super_operations ext2_super_operations = {
 	.alloc_inode = NULL,
 	.read_inode = ext2_read_inode_new,
-	.write_inode = NULL,
+	.write_inode = ext2_write_inode_new,
 	.sync_fs = NULL,
 	.write_super = NULL,
 };
@@ -98,17 +102,11 @@ int ext2_initialize_fs(){
 
 struct ext2_fs* ext2_mount(int dev) {
 	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
-	struct filesystem vfs;
 
 	efs->dev = dev;
 	efs->block_size = 1024;
 	efs->sb = NULL;
 	efs->bg = NULL;
-
-	strcpy(vfs.mount, ROOT_NAME);
-	vfs.type = EXT2;
-	vfs.data.fs = efs;
-	vfs.dev = dev;
 
 	ext2_superblock_read(efs);
 

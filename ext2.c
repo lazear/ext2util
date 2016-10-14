@@ -64,11 +64,26 @@ buffer* buffer_read(struct ext2_fs *f, int block) {
 buffer* buffer_read2(kdev_t dev, int block, int size) {
 	buffer* b = malloc(sizeof(buffer));
 
+	b->dev = dev;
 	b->block = block;
 	b->data = malloc(size);
+	b->size = size;
 	pread(fp, b->data, size, block*size);
 
 	return b;
+}
+
+/* Free the buffer block, since we're not caching */
+uint32_t buffer_write2(buffer* b) {
+	assert(b->block);
+	b->flags |= B_DIRTY;	// Dirty
+
+	pwrite(fp, b->data, b->size, b->block * b->size);
+	// IDE handler should clear the flags
+	b->flags &= ~B_DIRTY;
+	#ifdef DEBUG
+	printf("Wrote %d bytes to block %d\n", f->block_size, b->block);
+	#endif
 }
 
 /* Free the buffer block, since we're not caching */
@@ -278,19 +293,6 @@ uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group) {
 	return num + ((block_group - 1) * s->blocks_per_group) + 1;	// 1 indexed				
 }
 
-
-
-
-// Converts to same endian-ness as sublime for hex viewing
-uint32_t byte_order(uint32_t i) {
-	uint32_t x;
-	uint8_t* bytes = (uint8_t*) &x;
-	bytes[0] = i >> 24 & 0xFF;
-	bytes[1] = i >> 16 & 0xFF;
-	bytes[2] = i >> 8 & 0xFF;
-	bytes[3] = i & 0xFF;
-	return x;
-}
 
 int ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num) {
 	if (block_num >= (f->block_size / 4))

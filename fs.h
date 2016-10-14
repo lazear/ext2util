@@ -103,8 +103,8 @@ struct inode_operations {
 
 struct super_operations {
 	struct inode* (*alloc_inode)(struct super_block*);
-	int (*read_inode) (struct inode* inode);
-	int (*write_inode) (struct inode* inode);
+	void (*read_inode) (struct inode* inode);
+	void (*write_inode) (struct inode* inode);
 	int (*sync_fs) (struct super_block*);
 	int (*write_super) (struct super_block*);
 };
