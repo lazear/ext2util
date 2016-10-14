@@ -30,7 +30,7 @@ allowing the ramdisk to emulate a hard disk
 */
 
 #include "ext2.h"
-
+#include "fs.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
