@@ -4,7 +4,40 @@
 #include "fs.h"
 #include <stdio.h>
 
-/* Core virtual filesystem abstraction layer */
+struct super_block* ext2_read_super(struct super_block*, void*, int);
+
+struct file_system_type ext2_fs_type = {
+	.read_super = ext2_read_super,
+	.name = "ext2",
+	.requires_dev = 1,
+	.next = NULL
+};
+
+
+struct super_operations ext2_super_operations = {
+	.alloc_inode = NULL,
+	.read_inode = NULL,
+	.write_inode = NULL,
+	.sync_fs = NULL,
+	.write_super = NULL,
+};
+
+struct inode_operations ext2_file_inode_operations = {
+	.create = NULL,
+	.link = NULL,
+	.unlink = NULL,
+	.mkdir = NULL,
+	.rmdir = NULL,
+	.rename = NULL,
+};
+
+struct file_operations ext2_default_file_operations = {
+	.open = NULL,
+	.close = NULL,
+	.read = NULL,
+	.write = NULL,
+};
+
 
 
 void acquire_fs(struct ext2_fs *f) {
@@ -51,19 +84,22 @@ struct super_block* ext2_read_super(struct super_block* sb, void* data, int sile
 		buffer_free(b);
 		return NULL;
 	}
+
+	sb->s_type = &ext2_fs_type;
 	sb->s_blocksize = (1024 << es->log_block_size);
+	sb->s_access = 0x3;
+	sb->s_ops = &ext2_super_operations;
 	sb->u.ext2_sb = es;
 
+	/* load root inode */
 
 	return sb;
 }
 
-struct file_system_type ext2_fs_type = {
-	.read_super = NULL,
-	.name = "ext2",
-	.requires_dev = 1,
-	.next = NULL
-};
+
+int ext2_initialize_fs(){
+	return register_filesystem(&ext2_fs_type);
+}
 
 struct ext2_fs* ext2_mount(int dev) {
 	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
