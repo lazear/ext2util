@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include "fs.h"
 #include "ext2.h"
 #include "errno.h"
 
@@ -33,7 +34,7 @@ struct super_block {
 
 	union {
 		/* Store the on-disk data structures */
-		struct ext2_superblock ext2_sb;
+		struct ext2_superblock_info ext2_sb;
 		/* Add other filesystem implementations... */
 	}u;
 };

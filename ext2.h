@@ -53,7 +53,21 @@ Each block group has a backup superblock as it's first block
 #define EXT2_IND_BLOCK 	12
 
 
+#define EXT2_SB(s) 	((s)->u.ext2_sb.s_es)
+#define EXT2_ADDRESS_PER_BLOCK(s) 	((s)->s_block_size / sizeof(uint32_t))
 
+struct ext2_superblock_info {
+	uint32_t s_inodes_count;			// Total # of inodes
+	uint32_t s_blocks_count;			// Total # of blocks
+	uint32_t s_blocks_per_group;
+	uint32_t s_inodes_per_group;
+	uint32_t s_desc_per_block;
+	uint32_t s_groups_count;
+
+	struct ext2_superblock *s_es;
+	struct ide_buffer* s_sb_buffer;		/* Save locked buffers */
+	struct ide_buffer** s_gd_buffer;
+};
 
 struct ext2_superblock {
 	uint32_t inodes_count;			// Total # of inodes
@@ -87,7 +101,7 @@ struct ext2_superblock {
 Inode bitmap size = (inodes_per_group / 8) / BLOCK_SIZE
 block_group = (block_number - 1)/ (blocks_per_group) + 1
 */
-struct ext2_block_group_descriptor {
+struct ext2_group_desc {
 	uint32_t block_bitmap;
 	uint32_t inode_bitmap;
 	uint32_t inode_table;
@@ -193,7 +207,7 @@ struct ext2_fs {
 	int num_bg;
 	int mutex;
 	struct ext2_superblock* sb;
-	struct ext2_block_group_descriptor* bg;
+	struct ext2_group_desc* bg;
 };
 
 struct ext2_fs* gfsp;
@@ -205,70 +219,51 @@ struct ext2_fs* gfsp;
 /* Function definitions */
 
 /* Replace when on real hardware */
-extern buffer* buffer_read(struct ext2_fs *f, int block);
-extern uint32_t buffer_write(struct ext2_fs *f, buffer* b);
-extern buffer* buffer_read_superblock(struct ext2_fs* f);
-extern uint32_t buffer_write_superblock(struct ext2_fs *f, buffer* b);
-extern int buffer_free(buffer* b);
+// extern buffer* buffer_read(struct ext2_fs *f, int block);
+// extern uint32_t buffer_write(struct ext2_fs *f, buffer* b);
+// extern buffer* buffer_read_superblock(struct ext2_fs* f);
+// extern uint32_t buffer_write_superblock(struct ext2_fs *f, buffer* b);
+// extern int buffer_free(buffer* b);
 
-/* ext2.c */
-extern int ext2_superblock_read(struct ext2_fs *f);
-extern int ext2_superblock_write(struct ext2_fs *f);
-extern int ext2_blockdesc_read(struct ext2_fs *f);
-extern int ext2_blockdesc_write(struct ext2_fs *f);
-extern int ext2_first_free(uint32_t* b, int sz);
-extern uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group);
-extern int ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num);
-extern uint32_t ext2_read_indirect(struct ext2_fs *f, uint32_t indirect, size_t block_num);
+// /* ext2.c */
+// extern int ext2_superblock_read(struct ext2_fs *f);
+// extern int ext2_superblock_write(struct ext2_fs *f);
+// extern int ext2_blockdesc_read(struct ext2_fs *f);
+// extern int ext2_blockdesc_write(struct ext2_fs *f);
+// extern int ext2_first_free(uint32_t* b, int sz);
+// extern uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group);
+// extern int ext2_write_indirect(struct ext2_fs *f, uint32_t indirect, uint32_t link, size_t block_num);
+// extern uint32_t ext2_read_indirect(struct ext2_fs *f, uint32_t indirect, size_t block_num);
 
-/* file.c */
-extern int ext2_add_link(struct ext2_fs *f, int inode_num);
-extern size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n);
-extern size_t ext2_read_file(struct ext2_fs *f, struct ext2_inode* in, char* buf);
-extern size_t ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n);
+// /* file.c */
+// extern int ext2_add_link(struct ext2_fs *f, int inode_num);
+// extern size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n);
+// extern size_t ext2_read_file(struct ext2_fs *f, struct ext2_inode* in, char* buf);
+// extern size_t ext2_touch_file(struct ext2_fs *f, int parent, char* name, char* data, int mode, size_t n);
 
-/* dir.c */
-extern int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, int type);
-extern int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode);
-extern struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_inode);
+// /* dir.c */
+// extern int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, int type);
+// extern int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode);
+// extern struct ext2_dirent* ext2_create_dir(struct ext2_fs *f, char* name, int parent_inode);
 
-extern char* gen_file_perm_string(uint16_t x);
-extern void ls(struct ext2_fs *f, int inode_num);
+// extern char* gen_file_perm_string(uint16_t x);
+// extern void ls(struct ext2_fs *f, int inode_num);
 
-/* inode.c */
-//extern int ext2_read_inode_new(struct inode* inode);
-extern struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i);
-extern void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i);
-extern uint32_t ext2_alloc_inode(struct ext2_fs *f);
-extern uint32_t ext2_free_inode(struct ext2_fs *f, int i_no);
+// /* inode.c */
+// //extern void ext2_read_inode(struct inode*);
+// //extern void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i);
+// //extern struct inode* ext2_alloc_inode(struct super_block *);
+// //extern void ext2_free_inode(struct inode* inode);
 
-/* sync.c */
-extern void trav_device_list();
-extern struct filesystem* fs_dev_from_mount(char* mount);
-extern void fs_dev_init();
-extern int fs_dev_register(int dev, struct filesystem* f) ;
-extern struct ext2_fs* ext2_mount(int dev);
-extern void sync(struct ext2_fs *f);
-extern void release_fs(struct ext2_fs *f);
-extern void acquire_fs(struct ext2_fs *f);
-extern int pathize(struct ext2_fs* f, char* path);
+// /* sync.c */
+// extern struct super_block* ext2_mount(int dev);
+// extern void sync(struct ext2_fs *f);
+// extern void release_fs(struct ext2_fs *f);
+// extern void acquire_fs(struct ext2_fs *f);
+// extern int pathize(struct ext2_fs* f, char* path);
 
 
 #endif
-
-struct ext2_sb_info {
-	uint32_t s_inodes_count;			// Total # of inodes
-	uint32_t s_blocks_count;			// Total # of blocks
-	uint32_t s_blocks_per_group;
-	uint32_t s_frags_per_group;
-	uint32_t s_inodes_per_group;
-	uint32_t s_desc_per_block;
-	uint32_t s_groups_count;
-
-	struct ext2_superblock *s_es;
-	struct ide_buffer* s_sb_buffer;		/* Save locked buffers */
-	struct ide_buffer** s_gd_buffer;
-};
 
 // in mem, as of kernel 4.8
  //69 struct ext2_sb_info {
@@ -280,7 +275,8 @@ struct ext2_sb_info {
  // 75         unsigned long s_inodes_per_group;/* Number of inodes in a group */
  // 76         unsigned long s_itb_per_group;  /* Number of inode table blocks per group */
  // 77         unsigned long s_gdb_count;      /* Number of group descriptor blocks */
- // 78         unsigned long s_desc_per_block; /* Number of group descriptors per block */
+ // 78         unsigned long s_desc_per_blocmake
+ k; /* Number of group descriptors per block */
  // 79         unsigned long s_groups_count;   /* Number of groups in the fs */
  // 80         unsigned long s_overhead_last;  /* Last calculated overhead */
  // 81         unsigned long s_blocks_last;    /* Last seen block count */

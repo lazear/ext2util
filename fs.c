@@ -31,11 +31,15 @@ int unregister_filesystem(struct file_system_type* fs) {
 void lock_inode(struct inode* inode) {}
 void unlock_inode(struct inode* inode) {}
 
+struct inode* get_empty_inode() {
+	return malloc(sizeof(struct inode));
+}
+
 /* This should search the cached inodes list for a  match. 
 If no match is available, get an empty inode and read it from disk */
 struct inode* get_inode(struct super_block* sb, int i_no) {
 	/* For now, we're just going to allocate a new empty inode, and read it */
-	struct inode* inode = malloc(sizeof(struct inode));
+	struct inode* inode = get_empty_inode();
 	inode->i_ino = i_no;
 	inode->i_dev = sb->s_dev;
 	inode->i_sb = sb;

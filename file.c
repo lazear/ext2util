@@ -127,7 +127,7 @@ size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* n
 	*/
 
 	struct ext2_superblock* s 				= f->sb;
-	struct ext2_block_group_descriptor* bg 	= f->bg;
+	struct ext2_group_desc* bg 	= f->bg;
 
 	int sz = n;
 	int indirect = 0;

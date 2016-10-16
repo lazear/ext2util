@@ -44,6 +44,24 @@ void bg_dump(struct ext2_fs* f) {
 	printf("First free inode: %d\n", ext2_first_free(ibm->data, f->block_size)+1);
 }
 
+void bg_dump2(struct super_block* s) {
+
+	struct ext2_group_desc* bg = ext2_get_group_desc(s, 0);
+
+	printf("Block group descriptor informaton:\n");
+	printf("Block bitmap %d\n", bg->block_bitmap);
+	printf("Inode bitmap %d\n", bg->inode_bitmap);
+	printf("Inode table  %d\n", bg->inode_table);
+	printf("Free blocks  %d\n", bg->free_blocks_count);
+	printf("Free inodes  %d\n", bg->free_inodes_count);
+	printf("Used dirs    %d\n", bg->used_dirs_count);
+	
+	buffer* bbm = buffer_read2(s->s_dev, bg->block_bitmap, s->s_blocksize);
+	buffer* ibm = buffer_read2(s->s_dev, bg->inode_bitmap, s->s_blocksize);
+
+	printf("First free block: %d\n", ext2_first_free(bbm->data, s->s_blocksize)+1);
+	printf("First free inode: %d\n", ext2_first_free(ibm->data, s->s_blocksize)+1);
+}
 
 
 void inode_dump(struct ext2_fs* f, struct ext2_inode* in) {

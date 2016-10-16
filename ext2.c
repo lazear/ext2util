@@ -176,7 +176,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	if (!f) return -1;
 
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
-	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / f->block_size;
+	int num_to_read = (num_block_groups * sizeof(struct ext2_group_desc)) / f->block_size;
 	f->num_bg = num_block_groups;
 	num_to_read++;	// round up
 
@@ -185,7 +185,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	#endif
 
 	if (!f->bg) {
-		f->bg = malloc(num_block_groups* sizeof(struct ext2_block_group_descriptor));
+		f->bg = malloc(num_block_groups* sizeof(struct ext2_group_desc));
 	}
 
 	/* Above a certain block size to disk size ratio, we need more than one block */
@@ -198,21 +198,21 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	return 0;
 }
 
-struct ext2_block_group_descriptor* ext2_blockdesc_read_new
+struct ext2_group_desc* ext2_blockdesc_read_new
 	(struct super_block* sb) {
 	if (!sb) return NULL;
 
 	struct ext2_superblock* es = &sb->u.ext2_sb;
 
 	int num_block_groups = (es->blocks_count / es->blocks_per_group);
-	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / sb->s_blocksize;
+	int num_to_read = (num_block_groups * sizeof(struct ext2_group_desc)) / sb->s_blocksize;
 	num_to_read++;	// round up
 
 	#ifdef DEBUG
 	printf("Number of block groups: %d (%d blocks)\n", f->num_bg, num_to_read);
 	#endif
 
-	struct ext2_block_group_descriptor* bg = malloc(num_block_groups* sizeof(struct ext2_block_group_descriptor));
+	struct ext2_group_desc* bg = malloc(num_block_groups* sizeof(struct ext2_group_desc));
 
 	/* Above a certain block size to disk size ratio, we need more than one block */
 	for (int i = 0; i < num_to_read; i++) {
@@ -228,7 +228,7 @@ int ext2_blockdesc_write(struct ext2_fs *f) {
 	if (!f) return -1;
 
 	int num_block_groups = (f->sb->blocks_count / f->sb->blocks_per_group);
-	int num_to_read = (num_block_groups * sizeof(struct ext2_block_group_descriptor)) / f->block_size;
+	int num_to_read = (num_block_groups * sizeof(struct ext2_group_desc)) / f->block_size;
 	/* Above a certain block size to disk size ratio, we need more than one block */
 	num_to_read++;	// round up
 	for (int i = 0; i < num_to_read; i++) {
@@ -260,7 +260,7 @@ int ext2_first_free(uint32_t* b, int sz) {
 Finds a free block from the block descriptor group, and sets it as used
 */
 uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group) {
-	struct ext2_block_group_descriptor* bg = f->bg;
+	struct ext2_group_desc* bg = f->bg;
 	struct ext2_superblock* s = f->sb;
 
 	bg += block_group;
@@ -396,10 +396,10 @@ int main(int argc, char* argv[]) {
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
 
-	gfsp = ext2_mount(1);
-	gfsp->sb->mtime = time(NULL);	// Update mount time
+	struct super_block* sb = ext2_mount(1);
+	//gfsp->sb->mtime = time(NULL);	// Update mount time
 
-	sb_dump(gfsp->sb);
+	sb_dump(sb->u.ext2_sb.s_es);
 
 
 
@@ -442,7 +442,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (flags & 0x80) 
-		ls(gfsp, (flags & F_INODE) ? inode_num : 2);
+		//ls(gfsp, (flags & F_INODE) ? inode_num : 2);
+		ls(get_inode(sb, EXT2_ROOTDIR));
 
 	return 0;
 	//ext2_gen_dirent("New_entry", 5, 1);

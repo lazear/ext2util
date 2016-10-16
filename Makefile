@@ -23,10 +23,10 @@ FINAL	= ext2util
 OBJS	= debug.o \
 		  dir.o \
 		  ext2.o \
-		  file.o 
+		  file.o
 
 CC 		= gcc
-CCFLAGS = -O -w -std=c99
+CCFLAGS = -w -std=c99
 
 
 

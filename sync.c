@@ -5,10 +5,8 @@
 #include <stdio.h>
 
 struct super_block* ext2_read_super(struct super_block*, void*, int);
-
-extern void ext2_read_inode_new(struct inode* inode);
-extern void ext2_write_inode_new(struct inode* inode);
-
+extern void ext2_read_inode(struct inode*);
+extern void ext2_write_inode(struct inode*);
 
 struct file_system_type ext2_fs_type = {
 	.read_super = ext2_read_super,
@@ -20,8 +18,8 @@ struct file_system_type ext2_fs_type = {
 
 struct super_operations ext2_super_operations = {
 	.alloc_inode = NULL,
-	.read_inode = ext2_read_inode_new,
-	.write_inode = ext2_write_inode_new,
+	.read_inode = ext2_read_inode,
+	.write_inode = ext2_write_inode,
 	.sync_fs = NULL,
 	.write_super = NULL,
 };
@@ -62,6 +60,25 @@ void ext2_global_test(struct inode* inode) {
 	int silent -- do we output or not?
 */
 
+void spinlock_lock(uint32_t* lock) {
+	__sync_val_compare_and_swap(lock, 0, 1);
+	printf("lock vaL %d\n", *(uint32_t*)lock);
+}
+
+extern void acquire(uint32_t*);
+extern void release(uint32_t*);
+
+
+struct ext2_group_desc* ext2_get_group_desc (struct super_block* sb, int n) {
+	if (n > sb->u.ext2_sb.s_groups_count)
+		return NULL;
+	int group  = (n / (sb->s_blocksize / sizeof(struct ext2_group_desc)));
+	int offset = (n % (sb->s_blocksize / sizeof(struct ext2_group_desc)));
+	struct ext2_group_desc* gd = sb->u.ext2_sb.s_gd_buffer[group]->data;
+	return gd + offset;
+}
+
+
 struct super_block* ext2_read_super(struct super_block* sb, void* data, int silent) {
 
 	/* 
@@ -69,13 +86,17 @@ struct super_block* ext2_read_super(struct super_block* sb, void* data, int sile
 	2. Read root inode from disk
 	*/
 
+	printf("ext2_read_super()\n");
 	struct ext2_superblock * es;
+
 	struct ide_buffer* b;
 	kdev_t dev = sb->s_dev;
 	int block = 1;
 
 	b = buffer_read2(dev, EXT2_SUPER, 1024);
 	es = (struct ext2_superblock*) b->data;
+	sb->u.ext2_sb.s_es = es;
+	sb->u.ext2_sb.s_sb_buffer = b;
 
 	if (es->magic != EXT2_MAGIC) {
 		if (!silent)
@@ -84,14 +105,27 @@ struct super_block* ext2_read_super(struct super_block* sb, void* data, int sile
 		return NULL;
 	}
 
+	sb->u.ext2_sb.s_inodes_count = es->inodes_count;
+	sb->u.ext2_sb.s_blocks_count = es->blocks_count;
+	sb->u.ext2_sb.s_blocks_per_group = es->blocks_per_group;
+	sb->u.ext2_sb.s_groups_count = (es->blocks_count / es->blocks_per_group);
 	sb->s_type = &ext2_fs_type;
 	sb->s_blocksize = (1024 << es->log_block_size);
 	sb->s_access = 0x3;
 	sb->s_ops = &ext2_super_operations;
-	memcpy((void*) &sb->u.ext2_sb, es, sizeof(struct ext2_superblock));
+
+	/* Create a list of buffers containing the block group descriptors */
+	int num_block_groups = sb->u.ext2_sb.s_groups_count;
+	int num_to_read = ((num_block_groups * sizeof(struct ext2_group_desc)) / sb->s_blocksize) + 1;
+	sb->u.ext2_sb.s_gd_buffer = malloc(num_to_read * sizeof(struct ide_buffer*));
+	for (int i = 0; i < num_to_read; i++) {
+		int n = EXT2_SUPER + i + ((sb->s_blocksize == 1024) ? 1 : 0); 
+		sb->u.ext2_sb.s_gd_buffer[i] = buffer_read2(sb->s_dev, n, sb->s_blocksize);
+	}
+
+	/* Load the root inode of the file system */
 	sb->s_mounted = get_inode(sb, EXT2_ROOTDIR);
-	/* load root inode */
-	inode_dump2(sb->s_mounted);
+
 	return sb;
 }
 
@@ -100,28 +134,16 @@ int ext2_initialize_fs(){
 	return register_filesystem(&ext2_fs_type);
 }
 
-struct ext2_fs* ext2_mount(int dev) {
-	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
-
-	efs->dev = dev;
-	efs->block_size = 1024;
-	efs->sb = NULL;
-	efs->bg = NULL;
-
-	ext2_superblock_read(efs);
-
-	ext2_blockdesc_read(efs);
-
-	bg_dump(efs);
-
+struct super_block* ext2_mount(int dev) {
 
 	struct super_block* sb = malloc(sizeof(struct super_block));
 	ext2_read_super(sb, NULL, 0);
 
 	printf("DUMPING EXT2 SUPERBLOCK\n");
 	sb_dump(&sb->u.ext2_sb);
-
-	return efs;
+	bg_dump2(sb);
+	inode_dump2(sb->s_mounted);
+	return sb;
 }
 
 
