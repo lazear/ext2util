@@ -90,8 +90,9 @@ struct super_block* ext2_read_super(struct super_block* sb, void* data, int sile
 	sb->s_ops = &ext2_super_operations;
 	memcpy((void*) &sb->u.ext2_sb, es, sizeof(struct ext2_superblock));
 	sb->s_mounted = get_inode(sb, EXT2_ROOTDIR);
+	
 	/* load root inode */
-	inode_dump2(sb->s_mounted);
+
 	return sb;
 }
 
@@ -100,28 +101,14 @@ int ext2_initialize_fs(){
 	return register_filesystem(&ext2_fs_type);
 }
 
-struct ext2_fs* ext2_mount(int dev) {
-	struct ext2_fs* efs = malloc(sizeof(struct ext2_fs));
-
-	efs->dev = dev;
-	efs->block_size = 1024;
-	efs->sb = NULL;
-	efs->bg = NULL;
-
-	ext2_superblock_read(efs);
-
-	ext2_blockdesc_read(efs);
-
-	bg_dump(efs);
-
-
+struct super_block* ext2_mount(int dev) {
 	struct super_block* sb = malloc(sizeof(struct super_block));
+	ext2_initialize_fs();
 	ext2_read_super(sb, NULL, 0);
 
-	printf("DUMPING EXT2 SUPERBLOCK\n");
 	sb_dump(&sb->u.ext2_sb);
 
-	return efs;
+	return sb;
 }
 
 

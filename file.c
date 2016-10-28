@@ -111,6 +111,8 @@ which consists of:
 // }
 
 
+size_t ext2_write_file2(struct inode* inode, struct dentry* parent, )
+
 /* 
 Currently writes data to a new inode 
 Need to rewrite this function to handle existing inodes, with overwrite behavior

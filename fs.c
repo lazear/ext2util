@@ -32,7 +32,9 @@ void lock_inode(struct inode* inode) {}
 void unlock_inode(struct inode* inode) {}
 
 /* This should search the cached inodes list for a  match. 
-If no match is available, get an empty inode and read it from disk */
+If no match is available, get an empty inode and read it from disk 
+
+For now, just malloc a new inode*/
 struct inode* get_inode(struct super_block* sb, int i_no) {
 	/* For now, we're just going to allocate a new empty inode, and read it */
 	struct inode* inode = malloc(sizeof(struct inode));

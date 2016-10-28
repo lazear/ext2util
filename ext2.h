@@ -83,6 +83,21 @@ struct ext2_superblock {
 	uint16_t def_resgid;
 } __attribute__((packed));
 
+struct ext2_sb_info {
+	uint32_t s_inodes_count;			// Total # of inodes
+	uint32_t s_blocks_count;			// Total # of blocks
+	uint32_t s_blocks_per_group;
+	uint32_t s_frags_per_group;
+	uint32_t s_inodes_per_group;
+	uint32_t s_desc_per_block;
+	uint32_t s_groups_count;
+
+	struct ext2_superblock *s_es;
+	struct ide_buffer* s_sb_buffer;		/* Save locked buffers */
+	struct ide_buffer** s_gd_buffer;
+};
+
+
 /*
 Inode bitmap size = (inodes_per_group / 8) / BLOCK_SIZE
 block_group = (block_number - 1)/ (blocks_per_group) + 1
@@ -247,28 +262,16 @@ extern void trav_device_list();
 extern struct filesystem* fs_dev_from_mount(char* mount);
 extern void fs_dev_init();
 extern int fs_dev_register(int dev, struct filesystem* f) ;
-extern struct ext2_fs* ext2_mount(int dev);
+extern struct super_block* ext2_mount(int dev);
 extern void sync(struct ext2_fs *f);
 extern void release_fs(struct ext2_fs *f);
 extern void acquire_fs(struct ext2_fs *f);
 extern int pathize(struct ext2_fs* f, char* path);
 
 
+
 #endif
 
-struct ext2_sb_info {
-	uint32_t s_inodes_count;			// Total # of inodes
-	uint32_t s_blocks_count;			// Total # of blocks
-	uint32_t s_blocks_per_group;
-	uint32_t s_frags_per_group;
-	uint32_t s_inodes_per_group;
-	uint32_t s_desc_per_block;
-	uint32_t s_groups_count;
-
-	struct ext2_superblock *s_es;
-	struct ide_buffer* s_sb_buffer;		/* Save locked buffers */
-	struct ide_buffer** s_gd_buffer;
-};
 
 // in mem, as of kernel 4.8
  //69 struct ext2_sb_info {

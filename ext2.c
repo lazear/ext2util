@@ -396,10 +396,10 @@ int main(int argc, char* argv[]) {
 	fp = open(image, O_RDWR, 0444);
 	assert(fp);
 
-	gfsp = ext2_mount(1);
-	gfsp->sb->mtime = time(NULL);	// Update mount time
+	ext2_mount(1);
+	// gfsp->sb->mtime = time(NULL);	// Update mount time
 
-	sb_dump(gfsp->sb);
+	// sb_dump(gfsp->sb);
 
 
 

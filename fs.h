@@ -75,15 +75,15 @@ struct dentry {
 };
 
 struct file {
+	struct inode* f_inode;
 	uint16_t f_mode;	// Read/Writable
 	uint32_t f_flags;
-
 	uint64_t f_pos;		// Current read/write position
 	void* private_data;
 
 	const struct file_operations* f_ops;
 
-};
+} __attribute__((aligned(4)));
 
 struct file_operations {
 	int (*open) (struct inode*, struct file*);
