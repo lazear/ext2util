@@ -7,6 +7,7 @@
 #include "fs.h"
 #include "ext2.h"
 #include "errno.h"
+#include "list.h"
 
 typedef unsigned short kdev_t;
 
@@ -71,8 +72,12 @@ struct dentry {
 
 	struct super_block* d_sb;
 
-	struct dentry* d_peers;		/* peers of this directory */
-	struct dentry* d_children;	/* children of this directory */
+	struct list_head d_cache;
+	struct list_head d_peers;
+	struct list_head d_children;
+
+//	struct dentry* d_peers;		/* peers of this directory */
+//	struct dentry* d_children;	/* children of this directory */
 };
 
 struct file {
@@ -81,7 +86,7 @@ struct file {
 
 	uint64_t f_pos;		// Current read/write position
 	void* private_data;
-
+	struct inode* f_inode;
 	const struct file_operations* f_ops;
 
 };

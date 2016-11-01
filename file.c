@@ -111,10 +111,6 @@ which consists of:
 // }
 
 
-/* 
-Currently writes data to a new inode 
-Need to rewrite this function to handle existing inodes, with overwrite behavior
-*/
 size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* name, char* data, int mode, uint32_t n) {
 	/* 
 	Things we need to do:
@@ -217,6 +213,110 @@ size_t ext2_write_file(struct ext2_fs *f, int inode_num, int parent_dir, char* n
 
 	/* Write inode structure to disk */
 	ext2_write_inode(f, inode_num, i);
+	/* Add to parent directory */
+	ext2_add_child(f, parent_dir, inode_num, name, EXT2_FT_REG_FILE);
+
+	/* Update superblock/blockdesc information on disk*/
+	sync(f);
+
+	return inode_num;
+}
+
+
+/* 
+Write data to an on-disk inode 
+*/
+size_t ext2_write_file2(struct file* file, char* data, size_t foff, size_t n) {
+
+	/* VFS structures */
+	struct inode* inode = file->f_inode;
+	struct super_block* sb = inode->i_sb;
+	struct ext2_superblock* s = EXT2_SB(sb);
+	
+	/* Block-group-descriptor information */
+	int block_group = (inode->i_ino - 1) / s->inodes_per_group; // block group #
+	int index 		= (inode->i_ino - 1) % s->inodes_per_group; // index into block group
+	int block 		= (index * sizeof(struct ext2_inode)) / sb->s_blocksize;
+	int offset 		= (index % (f->block_size/INODE_SIZE))*INODE_SIZE;
+	struct ext2_group_desc* bg = ext2_get_group_desc(sb, block_group);
+
+
+	int sz = n;			/* How many bytes to write */
+	int indirect = 0;	/* Indirect block number */
+
+	struct ext2_inode* i = file->f_inode.u->ext2_i;
+
+	/* Update the on-disk inode structure */
+	//i->mode = mode;	
+	i->size = (i->size) ? ((foff + n > i->size) ? (foff+n) : i->size) : (foff+n);
+	i->atime = time(NULL);
+	i->ctime = (i->ctime) ? i->ctime : time(NULL);
+	i->mtime = time(NULL);
+	i->dtime = 0;
+	i->links_count = (i->links_count) ? i->links_count : 1;
+
+	int q = (foff / sb->s_blocksize);	/* Starting block number */
+	struct ide_buffer* indb;			/* Buffer for indirect block */
+
+
+	while(sz) {
+
+		uint32_t block_num = 0;
+
+		/* Do we write f->block_size or sz bytes? */
+		int c = (sz >= sb->s_blocksize) ? sb->s_blocksize : sz;
+
+		if (q < EXT2_IND_BLOCK ) {
+			block_num = ext2_alloc_block(f, block_group);
+			i->block[q] = block_num;
+
+		} else if (q == EXT2_IND_BLOCK ) {
+
+			block_num = ext2_alloc_block(f, block_group);
+			indirect = block_num;
+
+			indb = buffer_read3(sb, indirect);
+			memset(indb->data, 0, sb->s_blocksize);
+			buffer_write2(indb);
+
+			i->block[q] = indirect;
+
+			//ext2_write_indirect(indirect, block_num, 0);
+		} else if(q > EXT2_IND_BLOCK && q < ((sb->s_blocksize/sizeof(uint32_t)) + EXT2_IND_BLOCK )) {
+			block_num = ext2_alloc_block(f, block_group);
+			ext2_write_indirect(f, indirect, block_num, q-13);
+		}
+		
+		if (q != EXT2_IND_BLOCK ) {
+			/* Go ahead and write the data to disk */
+			buffer* b = buffer_read3(sb, block_num);
+			memset(b->data, 0, sb->s_blocksize);
+
+			int offset = ((q > EXT2_IND_BLOCK) ? (q-1) : (q) )* sb->s_blocksize;
+	
+			memcpy(b->data, data + offset, c);
+
+			buffer_write2(b);
+			buffer_free(b);
+			sz -= c;	// decrease bytes to write
+		}
+		i->blocks += (sb->s_blocksize / SECTOR_SIZE);			// 2 sectors per block
+		q++;
+	}
+
+	if (indirect) {
+		ext2_write_indirect(f, indirect, 0, q-13);
+		i->blocks += (sb->s_blocksize / SECTOR_SIZE);
+	}	
+
+	/* Mark inode as used in the inode bitmap */
+	buffer* b = buffer_read3(sb, bg->inode_bitmap);
+	b->data[index/32] |= (1 << (index % 32));
+	buffer_write2(b);	
+
+
+	/* Write inode structure to disk */
+	ext2_write_inode(inode);
 	/* Add to parent directory */
 	ext2_add_child(f, parent_dir, inode_num, name, EXT2_FT_REG_FILE);
 

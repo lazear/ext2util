@@ -73,6 +73,10 @@ buffer* buffer_read2(kdev_t dev, int block, int size) {
 	return b;
 }
 
+buffer* buffer_read3(struct super_block* sb, int block) {
+	return buffer_read2(sb->s_dev, block, sb->s_blocksize);
+}
+
 /* Free the buffer block, since we're not caching */
 uint32_t buffer_write2(buffer* b) {
 	assert(b->block);
@@ -259,30 +263,29 @@ int ext2_first_free(uint32_t* b, int sz) {
 /* 
 Finds a free block from the block descriptor group, and sets it as used
 */
-uint32_t ext2_alloc_block(struct ext2_fs *f, int block_group) {
-	struct ext2_group_desc* bg = f->bg;
-	struct ext2_superblock* s = f->sb;
+uint32_t ext2_alloc_block(struct super_block* sb, int block_group) {
+	struct ext2_group_desc* bg = ext2_get_group_desc(sb, block_group);
+	struct ext2_superblock* s = EXT2_SB(sb);
 
-	bg += block_group;
 	// Read the block and inode bitmaps from the block descriptor group
 	buffer* bitmap_buf;
-	uint32_t* bitmap = malloc(f->block_size);
+	uint32_t* bitmap = malloc(sb->s_blocksize);
 	uint32_t num = 0;
 	do {
 
-		bitmap_buf = buffer_read(f, bg->block_bitmap);
-		memcpy(bitmap, bitmap_buf->data, f->block_size);
+		bitmap_buf = buffer_read3(sb, bg->block_bitmap);
+		memcpy(bitmap, bitmap_buf->data, sb->s_blocksize);
 		// Find the first free bit in both bitmaps
 		bg++;
 		block_group++;
-	} while( (num = ext2_first_free(bitmap, f->block_size)) == -1);	
+	} while( (num = ext2_first_free(bitmap, sb->s_blocksize)) == -1);	
 
 	// Should use a macro, not "32"
 	bitmap[num / 32] |= (1<<(num % 32));
 
 	// Update bitmaps and write to disk
-	memcpy(bitmap_buf->data, bitmap, f->block_size);	
-	buffer_write(f, bitmap_buf);		
+	memcpy(bitmap_buf->data, bitmap, sb->s_blocksize);	
+	buffer_write2(bitmap_buf);		
 
 	// Free our bitmaps
 	free(bitmap);			
@@ -401,6 +404,7 @@ int main(int argc, char* argv[]) {
 
 	sb_dump(sb->u.ext2_sb.s_es);
 
+	dentry_test();
 
 
 	if (flags & 0x1) {			/* Write */
