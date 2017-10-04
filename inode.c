@@ -45,7 +45,7 @@ struct ext2_inode* ext2_read_inode(struct ext2_fs *f, int i) {
 	buffer* b = buffer_read(f, bgd->inode_table+block);
 	struct ext2_inode* in = malloc(INODE_SIZE);
 	/* Switched to memcpy. This may avoid issues for OS level buffer caching. */
-	memcpy(in, ((uint32_t) b->data + (index % (f->block_size/INODE_SIZE))*INODE_SIZE), INODE_SIZE);
+	memcpy(in, ((char*) b->data + (index % (f->block_size/INODE_SIZE))*INODE_SIZE), INODE_SIZE);
 	release_fs(f);
 	return in;
 }
@@ -65,7 +65,7 @@ void ext2_write_inode(struct ext2_fs *f, int inode_num, struct ext2_inode* i) {
 
 	// Not using the inode table was the issue...
 	buffer* b = buffer_read(f, bgd->inode_table+block);
-	memcpy((uint32_t) b->data + offset, i, INODE_SIZE);
+	memcpy((char*) b->data + offset, i, INODE_SIZE);
 	buffer_write(f, b);
 
 	release_fs(f);

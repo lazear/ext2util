@@ -259,13 +259,13 @@ size_t ext2_read_file(struct ext2_fs *f, struct ext2_inode* in, char* buf) {
 		if (i < 12) {
 			blocknum = in->block[i];
 			buffer* b = buffer_read(f, blocknum);
-			memcpy((uint32_t) buf + (i * f->block_size), b->data, f->block_size);
+			memcpy((char*) buf + (i * f->block_size), b->data, f->block_size);
 			buffer_free(b);
 		}
 		if (i > 12) {
 			blocknum = ext2_read_indirect(f, indirect, i-13);
 			buffer* b = buffer_read(f, blocknum);
-			memcpy((uint32_t) buf + ((i-1) * f->block_size), b->data, f->block_size);
+			memcpy((char*) buf + ((i-1) * f->block_size), b->data, f->block_size);
 			buffer_free(b);
 		}
 

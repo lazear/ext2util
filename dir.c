@@ -66,18 +66,18 @@ int ext2_add_child(struct ext2_fs *f, int parent_inode, int i_no, char* name, in
 				return NULL;
 			}
 			d->rec_len = calc; 		// Resize this entry to it's real size
-			d = (struct ext2_dirent*)((uint32_t) d + d->rec_len);
+			d = (struct ext2_dirent*)((char*) d + d->rec_len);
 			break;
 		}
 		//printf("name %s\n",d->name);
-		d = (struct ext2_dirent*)((uint32_t) d + d->rec_len);
+		d = (struct ext2_dirent*)((char*) d + d->rec_len);
 
 		if (d->rec_len == 0)
 			break;
 	} while(sum < f->block_size);
 
 	/* d is now pointing at a blank entry, right after the resized last entry */
-	d->rec_len 		= f->block_size - ((uint32_t)d - (uint32_t)rootdir_buf->data);
+	d->rec_len 		= f->block_size - ((char*)d - (char*)rootdir_buf->data);
 	d->inode 		= i_no;
 	d->file_type 	= 1;
 	d->name_len 	= strlen(name);
@@ -102,7 +102,7 @@ int ext2_find_child(struct ext2_fs *f, const char* name, int dir_inode) {
 
 	for (int q = 0; q < i->blocks / 2; q++) {
 		buffer* b = buffer_read(f, i->block[q]);
-		memcpy((uint32_t)buf+(q * f->block_size), b->data, f->block_size);
+		memcpy((char*)buf+(q * f->block_size), b->data, f->block_size);
 	}
 
 	struct ext2_dirent* d = (struct ext2_dirent*) buf;
@@ -182,7 +182,7 @@ void ls(struct ext2_fs *f, int inode_num) {
 	for (int q = 0; q < num_blocks; q++) {
 		printf("%d\n", i->block[q]);
 		buffer* b = buffer_read(f, i->block[q]);
-		memcpy((uint32_t)buf + (q*f->block_size), b->data, f->block_size);
+		memcpy((char*)buf + (q*f->block_size), b->data, f->block_size);
 		buffer_free(b);
 	}
 
