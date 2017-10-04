@@ -167,7 +167,7 @@ int ext2_blockdesc_read(struct ext2_fs *f) {
 	for (int i = 0; i < num_to_read; i++) {
 		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
 		buffer* b = buffer_read(f, n);
-		memcpy((uint32_t) f->bg + (i*f->block_size), b->data, f->block_size);
+		memcpy(((char*) f->bg) + (i*f->block_size), b->data, f->block_size);
 		buffer_free(b);
 	}
 	return 0;
@@ -183,7 +183,7 @@ int ext2_blockdesc_write(struct ext2_fs *f) {
 	for (int i = 0; i < num_to_read; i++) {
 		int n = EXT2_SUPER + i + ((f->block_size == 1024) ? 1 : 0); 	
 		buffer* b = buffer_read(f, n);
-		memcpy(b->data, (uint32_t) f->bg + (i*f->block_size), f->block_size);
+		memcpy(b->data, (char*) f->bg + (i*f->block_size), f->block_size);
 
 		#ifdef DEBUG
 		printf("Writing to block group desc (block %d)\n", n);
